@@ -1,0 +1,17 @@
+The testing harness (../../runall) doesn't run these files directly, but
+instead through .mlb files in the parent directory. This is because the test
+command is simply `smlfmt --preview-only`, which does not enable SML# syntax.
+But we can use a .mlb file to turn it on.
+
+See the file ../smlsharp.mlb:
+
+  $(SML_LIB)/basis/basis.mlb
+  ann "allowSMLSharp true" in
+    smlsharp/basic.sml
+  end
+
+This allows us to test SML# syntax while using the same test command for all
+test files.
+
+Note that SML# interface files (.smi) are a different grammar and are not
+covered here.
