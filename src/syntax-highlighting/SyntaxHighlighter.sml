@@ -112,6 +112,7 @@ struct
         , orPat = true
         , extendedText = true
         , sigWithtype = true
+        , smlSharp = true
         }
 
       val startOffset = Source.absoluteStartOffset src

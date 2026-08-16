@@ -143,3 +143,9 @@ for UTF-8 characters within strings.
 
 `-allow-sig-withtype [true|false]` (default `false`) controls whether or not
 SuccessorML `withtype` in signatures syntax is allowed.
+
+`-allow-smlsharp [true|false]` (default `false`) controls whether or not
+[SML#](https://smlsharp.github.io/) syntax extensions are allowed. SML# is a
+separate dialect rather than a SuccessorML feature, so this is not implied by
+`-allow-successor-ml`. Only `.sml` files are covered; SML# interface files
+(`.smi`) use a different grammar and are not yet supported.

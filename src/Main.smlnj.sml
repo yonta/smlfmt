@@ -67,6 +67,7 @@ struct
     , orPat = false
     , extendedText = false
     , sigWithtype = false
+    , smlSharp = false
     }
 
 

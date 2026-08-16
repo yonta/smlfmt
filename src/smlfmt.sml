@@ -86,6 +86,10 @@ val optionalArgDesc =
   \                             Valid options are: true, false\n\
   \                             (default 'false')\n\
   \\n\
+  \  [-allow-smlsharp B]        Enable/disable SML# syntax extensions.\n\
+  \                             Valid options are: true, false\n\
+  \                             (default 'false')\n\
+  \\n\
   \  [--help]                   print this message\n"
 
 
@@ -115,6 +119,11 @@ val allowExtendedText =
 val allowSigWithtype =
   CommandLineArgs.parseBool "allow-sig-withtype" allowSuccessorML
 
+(** SML# is a separate dialect, not a SuccessorML feature. Its extensions are
+  * therefore not implied by -allow-successor-ml.
+  *)
+val allowSMLSharp = CommandLineArgs.parseBool "allow-smlsharp" false
+
 val doDebug = CommandLineArgs.parseFlag "debug-engine"
 val doForce = CommandLineArgs.parseFlag "force"
 val doReadOnly = CommandLineArgs.parseFlag "read-only"
@@ -135,6 +144,7 @@ val allows = AstAllows.make
   , orPat = allowOrPat
   , extendedText = allowExtendedText
   , sigWithtype = allowSigWithtype
+  , smlSharp = allowSMLSharp
   }
 
 val _ =

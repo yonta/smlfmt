@@ -14,6 +14,7 @@ sig
     , orPat: bool
     , extendedText: bool
     , sigWithtype: bool
+    , smlSharp: bool
     }
     -> t
 
@@ -23,6 +24,7 @@ sig
   val orPat: t -> bool
   val extendedText: t -> bool
   val sigWithtype: t -> bool
+  val smlSharp: t -> bool
 end =
 struct
   datatype t =
@@ -33,6 +35,7 @@ struct
       , orPat: bool
       , extendedText: bool
       , sigWithtype: bool
+      , smlSharp: bool
       }
 
   fun make x = T x
@@ -42,4 +45,5 @@ struct
   fun orPat (T x) = #orPat x
   fun extendedText (T x) = #extendedText x
   fun sigWithtype (T x) = #sigWithtype x
+  fun smlSharp (T x) = #smlSharp x
 end

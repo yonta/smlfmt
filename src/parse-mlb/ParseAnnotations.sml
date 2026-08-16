@@ -22,6 +22,7 @@ struct
       , orPat = b
       , extendedText = b
       , sigWithtype = b
+      , smlSharp = AstAllows.smlSharp a
       }
 
 
@@ -33,6 +34,7 @@ struct
       , orPat = AstAllows.orPat a
       , extendedText = AstAllows.extendedText a
       , sigWithtype = AstAllows.sigWithtype a
+      , smlSharp = AstAllows.smlSharp a
       }
 
 
@@ -44,6 +46,7 @@ struct
       , orPat = AstAllows.orPat a
       , extendedText = AstAllows.extendedText a
       , sigWithtype = AstAllows.sigWithtype a
+      , smlSharp = AstAllows.smlSharp a
       }
 
 
@@ -55,6 +58,7 @@ struct
       , orPat = b
       , extendedText = AstAllows.extendedText a
       , sigWithtype = AstAllows.sigWithtype a
+      , smlSharp = AstAllows.smlSharp a
       }
 
 
@@ -66,6 +70,7 @@ struct
       , orPat = AstAllows.orPat a
       , extendedText = b
       , sigWithtype = AstAllows.sigWithtype a
+      , smlSharp = AstAllows.smlSharp a
       }
 
   fun allowSigWithtype a b =
@@ -76,6 +81,19 @@ struct
       , orPat = AstAllows.orPat a
       , extendedText = AstAllows.extendedText a
       , sigWithtype = b
+      , smlSharp = AstAllows.smlSharp a
+      }
+
+
+  fun allowSMLSharp a b =
+    AstAllows.make
+      { optBar = AstAllows.optBar a
+      , topExp = AstAllows.topExp a
+      , recordPun = AstAllows.recordPun a
+      , orPat = AstAllows.orPat a
+      , extendedText = AstAllows.extendedText a
+      , sigWithtype = AstAllows.sigWithtype a
+      , smlSharp = b
       }
 
 
@@ -111,6 +129,8 @@ struct
         allowExtendedTextConsts allows false
     | ["allowSigWithtype", "true"] => allowSigWithtype allows true
     | ["allowSigWithtype", "false"] => allowSigWithtype allows false
+    | ["allowSMLSharp", "true"] => allowSMLSharp allows true
+    | ["allowSMLSharp", "false"] => allowSMLSharp allows false
     | _ => allows
 
 
