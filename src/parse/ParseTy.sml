@@ -8,7 +8,7 @@ sig
   type ('a, 'b) parser = ('a, 'b) ParserCombinators.parser
   type tokens = Token.t Seq.t
 
-  val ty: tokens -> (int, Ast.Ty.ty) parser
+  val ty: AstAllows.t -> tokens -> (int, Ast.Ty.ty) parser
 end =
 struct
 
@@ -19,7 +19,7 @@ struct
   type tokens = Token.t Seq.t
 
 
-  fun ty toks start =
+  fun ty allows toks start =
     let
       val numToks = Seq.length toks
       fun tok i = Seq.nth toks i
@@ -28,7 +28,8 @@ struct
       fun isReserved rc i =
         check (fn t => Token.Reserved rc = Token.getClass t) i
 
-      fun parse_recordLabel i = PS.recordLabel toks i
+      fun parse_recordLabel i =
+        PS.recordLabel allows toks i
       fun parse_reserved rc i =
         PS.reserved toks rc i
       fun parse_zeroOrMoreDelimitedByReserved x i =
@@ -37,9 +38,17 @@ struct
       fun parse_tyWithRestriction restriction i =
         let
           val (i, ty) =
-            if check Token.isTyVar i then
+            if
+              check Token.isTyVar i
+            then
               (i + 1, Ast.Ty.Var (tok i))
-            else if isReserved Token.OpenParen i then
+            else if
+              AstAllows.smlSharp allows andalso isReserved Token.Underscore i
+            then
+              (i + 1, Ast.Ty.Wild (tok i))
+            else if
+              isReserved Token.OpenParen i
+            then
               let
                 val leftParen = tok i
                 val (i, ty) =
@@ -48,9 +57,13 @@ struct
               in
                 parse_tyParensOrSequence leftParen [ty] [] i
               end
-            else if isReserved Token.OpenCurlyBracket i then
+            else if
+              isReserved Token.OpenCurlyBracket i
+            then
               parse_tyRecord (tok i) (i + 1)
-            else if check Token.isMaybeLongIdentifier i then
+            else if
+              check Token.isMaybeLongIdentifier i
+            then
               ( i + 1
               , Ast.Ty.Con
                   {id = MaybeLongToken.make (tok i), args = Ast.SyntaxSeq.Empty}
@@ -101,15 +114,26 @@ struct
       and parse_tyRecord leftBracket i =
         let
           fun parseElem i =
-            let
-              val (i, lab) = parse_recordLabel i
-              val (i, colon) = parse_reserved Token.Colon i
-              val (i, ty) =
-                parse_tyWithRestriction
-                  {permitArrows = true, permitTuple = true} i
-            in
-              (i, {lab = lab, colon = colon, ty = ty})
-            end
+            if AstAllows.smlSharp allows andalso isReserved Token.DotDotDot i then
+              if isReserved Token.CloseCurlyBracket (i + 1) then
+                (i + 1, Ast.Ty.DotDotDot (tok i))
+              else
+                ParserUtils.tokError toks
+                  { pos = i
+                  , what = "Unexpected token."
+                  , explain = SOME
+                      "This can only appear at the end of the record."
+                  }
+            else
+              let
+                val (i, lab) = parse_recordLabel i
+                val (i, colon) = parse_reserved Token.Colon i
+                val (i, ty) =
+                  parse_tyWithRestriction
+                    {permitArrows = true, permitTuple = true} i
+              in
+                (i, Ast.Ty.LabTy {lab = lab, colon = colon, ty = ty})
+              end
 
           val (i, {elems, delims}) =
             parse_zeroOrMoreDelimitedByReserved

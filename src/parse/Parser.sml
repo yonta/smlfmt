@@ -70,7 +70,8 @@ struct
       fun parse_tycon i = PS.tycon toks i
       fun parse_maybeLongTycon i = PS.maybeLongTycon toks i
       fun parse_maybeLongStrid i = PS.maybeLongStrid toks i
-      fun parse_ty i = PT.ty toks i
+      fun parse_ty i =
+        PT.ty allows toks i
 
 
       fun parse_oneOrMoreDelimitedByReserved x i =

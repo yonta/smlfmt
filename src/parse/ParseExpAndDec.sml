@@ -159,9 +159,11 @@ struct
         PS.maybeReserved toks rc i
       fun parse_vid i = PS.vid toks i
       fun parse_longvid i = PS.longvid toks i
-      fun parse_recordLabel i = PS.recordLabel toks i
+      fun parse_recordLabel i =
+        PS.recordLabel allows toks i
       fun parse_tycon i = PS.tycon toks i
-      fun parse_ty i = PT.ty toks i
+      fun parse_ty i =
+        PT.ty allows toks i
       fun parse_pat infdict restriction i =
         PP.pat allows toks infdict restriction i
 
@@ -715,8 +717,10 @@ struct
         PS.maybeReserved toks rc i
       fun parse_vid i = PS.vid toks i
       fun parse_longvid i = PS.longvid toks i
-      fun parse_recordLabel i = PS.recordLabel toks i
-      fun parse_ty i = PT.ty toks i
+      fun parse_recordLabel i =
+        PS.recordLabel allows toks i
+      fun parse_ty i =
+        PT.ty allows toks i
       fun parse_pat infdict restriction i =
         PP.pat allows toks infdict restriction i
 
@@ -858,6 +862,14 @@ struct
             then (true, consume_expInfix infdict exp (i + 1))
 
             else if
+              AstAllows.smlSharp allows andalso Restriction.appOkay restriction
+              andalso Ast.Exp.isAppExp exp andalso isReserved Token.Hash at i
+              andalso
+              (isReserved Token.OpenCurlyBracket at (i + 1)
+               orelse isReserved Token.OpenParen at (i + 1))
+            then (true, consume_expRecordUpdate infdict exp (tok i) (i + 1))
+
+            else if
               Restriction.appOkay restriction
             then (true, consume_expApp infdict exp i)
 
@@ -981,6 +993,87 @@ struct
       and consume_expSelect hash i =
         let val (i, lab) = parse_recordLabel i
         in (i, Ast.Exp.Select {hash = hash, label = lab})
+        end
+
+
+      (** SML#: exp # { ... } or exp # ( ... )
+        *          ^
+        *)
+      and consume_expRecordUpdate infdict exp hash i =
+        let
+          val (i, update) =
+            if isReserved Token.OpenCurlyBracket at i then
+              consume_expUpdateCurly infdict (tok i) (i + 1)
+            else
+              consume_expUpdateTuple infdict (tok i) (i + 1)
+        in
+          (i, Ast.Exp.RecordUpdate {exp = exp, hash = hash, update = update})
+        end
+
+
+      (** # { lab = exp, ... } or # { exp }
+        *    ^
+        *
+        * Record punning is deliberately not applied here: in SML#, `e # {x}`
+        * overwrites `e` with the record `x`, which is not `{x = x}`.
+        *)
+      and consume_expUpdateCurly infdict left i =
+        if
+          isReserved Token.CloseCurlyBracket at i
+          orelse
+          (check (Token.isRecordLabel allows) i
+           andalso isReserved Token.Equal at (i + 1))
+        then
+          let
+            fun parseElem i =
+              let
+                val (i, lab) = parse_recordLabel i
+                val (i, eq) = parse_reserved Token.Equal i
+                val (i, exp) = consume_exp infdict Restriction.None i
+              in
+                (i, Ast.Exp.RecordRow {lab = lab, eq = eq, exp = exp})
+              end
+
+            val (i, {elems, delims}) =
+              parse_zeroOrMoreDelimitedByReserved
+                { parseElem = parseElem
+                , delim = Token.Comma
+                , shouldStop = isReserved Token.CloseCurlyBracket
+                } i
+
+            val (i, right) = parse_reserved Token.CloseCurlyBracket i
+          in
+            ( i
+            , Ast.Exp.UpdateRows
+                {left = left, elems = elems, delims = delims, right = right}
+            )
+          end
+        else
+          let
+            val (i, exp) = consume_exp infdict Restriction.At i
+            val (i, right) = parse_reserved Token.CloseCurlyBracket i
+          in
+            (i, Ast.Exp.UpdateRecord {left = left, exp = exp, right = right})
+          end
+
+
+      (** # ( exp, ..., exp )
+        *    ^
+        *)
+      and consume_expUpdateTuple infdict left i =
+        let
+          val (i, {elems, delims}) =
+            parse_oneOrMoreDelimitedByReserved
+              { parseElem = consume_exp infdict Restriction.None
+              , delim = Token.Comma
+              } i
+
+          val (i, right) = parse_reserved Token.CloseParen i
+        in
+          ( i
+          , Ast.Exp.UpdateTuple
+              {left = left, elems = elems, delims = delims, right = right}
+          )
         end
 
 

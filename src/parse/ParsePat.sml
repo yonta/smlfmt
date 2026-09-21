@@ -76,7 +76,8 @@ struct
         PC.oneOrMoreDelimitedByReserved toks x i
       fun parse_zeroOrMoreDelimitedByReserved x i =
         PC.zeroOrMoreDelimitedByReserved toks x i
-      fun parse_ty i = PT.ty toks i
+      fun parse_ty i =
+        PT.ty allows toks i
 
       fun consume_pat infdict restriction i =
         if not (Restriction.anyOkay restriction andalso AstAllows.orPat allows) then
@@ -235,7 +236,8 @@ struct
               , explain = SOME "This can only appear at the end of the record."
               }
         else if
-          check Token.isRecordLabel i andalso isReserved Token.Equal (i + 1)
+          check (Token.isRecordLabel allows) i
+          andalso isReserved Token.Equal (i + 1)
         then
           let
             val (i, lab) = (i + 1, tok i)

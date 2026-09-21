@@ -321,6 +321,7 @@ struct
           in
             sequence left delims right (Seq.map showRow elems)
           end
+      | RecordUpdate _ => smlSharpFail ()
       | Select {hash, label} => token hash ++ space ++ token label
       | App {left, right} => showExp left \\ showExp right
       | Infix {left, id, right} => showInfixedExp (left, id, right)

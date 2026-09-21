@@ -335,8 +335,21 @@ struct
           | #"." => loop_afterDot (s + 1)
           | #"*" => loop_symbolicId (s + 1) {idStart = s, longStart = NONE}
           | #"#" =>
-              if is #"\"" at s + 1 then loop_charConstant (s + 2)
-              else loop_symbolicId (s + 1) {idStart = s, longStart = NONE}
+              if
+                not (is #"\"" at s + 1)
+              then
+                loop_symbolicId (s + 1) {idStart = s, longStart = NONE}
+              (** SML# reads `#"..."` as a char constant only when the
+                * contents are exactly one character long; anything else is a
+                * selector on a string label, so hand back a bare `#` and let
+                * the string be lexed on its own.
+                *)
+              else if
+                AstAllows.smlSharp allows andalso not (isOneCharLong (s + 2))
+              then
+                success (mkr Token.Hash (s, s + 1))
+              else
+                loop_charConstant (s + 2)
           | c =>
               if LexUtils.isDecDigit c then
                 loop_decIntegerConstant (s + 1) {constStart = s}
@@ -358,6 +371,15 @@ struct
       and loop_whitespace {start} i =
         if check Char.isSpace i then loop_whitespace {start = start} (i + 1)
         else success (mk Token.Whitespace (start, i))
+
+
+      (** #"...
+        *   ^
+        *)
+      and isOneCharLong s =
+        case advance_oneCharInString s {stringStart = s - 1} of
+          SOME s' => is #"\"" at s'
+        | NONE => false
 
 
       (** #"...

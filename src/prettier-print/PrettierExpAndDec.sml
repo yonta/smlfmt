@@ -167,31 +167,39 @@ struct
             Seq.length elems > 1
             orelse looksBig (depth + 1) (#exp (Seq.nth elems 0))
 
-        | Tuple {elems, ...} =>
-            Seq.length elems >= 5
-            orelse
-            Util.exists (0, Seq.length elems) (fn i =>
-              looksBig (depth + 1) (Seq.nth elems i))
+        | Tuple {elems, ...} => tupleLooksBig depth elems
 
-        | List {elems, ...} =>
-            Seq.length elems >= 5
-            orelse
-            Util.exists (0, Seq.length elems) (fn i =>
-              looksBig (depth + 1) (Seq.nth elems i))
+        | List {elems, ...} => tupleLooksBig depth elems
 
-        | Record {elems, ...} =>
-            Seq.length elems >= 4
+        | Record {elems, ...} => rowsLookBig depth elems
+
+        | RecordUpdate {exp, update, ...} =>
+            looksBig (depth + 1) exp
             orelse
-            Util.exists (0, Seq.length elems) (fn i =>
-              case Seq.nth elems i of
-                RecordPun {id} => tokIsBig id
-              | RecordRow {exp, ...} => looksBig (depth + 1) exp)
-            orelse
-            SeqBasis.foldl op+ 0 (0, Seq.length elems) (fn i =>
-              Source.length (Token.getSource (recordRowLabel (Seq.nth elems i))))
-            >= singleTokBignessThreshold
+            (case update of
+               UpdateRows {elems, ...} => rowsLookBig depth elems
+             | UpdateRecord {exp, ...} => looksBig (depth + 1) exp
+             | UpdateTuple {elems, ...} => tupleLooksBig depth elems)
 
         | _ => true
+
+      and tupleLooksBig depth elems =
+        Seq.length elems >= 5
+        orelse
+        Util.exists (0, Seq.length elems) (fn i =>
+          looksBig (depth + 1) (Seq.nth elems i))
+
+      and rowsLookBig depth elems =
+        Seq.length elems >= 4
+        orelse
+        Util.exists (0, Seq.length elems) (fn i =>
+          case Seq.nth elems i of
+            RecordPun {id} => tokIsBig id
+          | RecordRow {exp, ...} => looksBig (depth + 1) exp)
+        orelse
+        SeqBasis.foldl op+ 0 (0, Seq.length elems) (fn i =>
+          Source.length (Token.getSource (recordRowLabel (Seq.nth elems i))))
+        >= singleTokBignessThreshold
 
     in
       looksBig 0 exp
@@ -313,38 +321,13 @@ struct
             {openn = left, elems = elems, delims = delims, close = right}
 
       | Record {left, elems, delims, right} =>
-          let
-            fun showRecordRow tab {lab, eq, exp} =
-              if not (isSplittableExp exp) then
-                token lab ++ token eq ++ (withNewChild showExp tab) exp
-              else
-                token lab ++ token eq
-                ++
-                newTab tab (fn expGhost =>
-                  newTab tab (fn child =>
-                    let
-                      val expAtChild = at child (showExp child exp)
-                    in
-                      letdoc expAtChild (fn ec =>
-                        cond expGhost
-                          { inactive = cond child
-                              { inactive = var ec
-                              , active =
-                                  at expGhost (splitShowExpLeft expGhost exp)
-                                  ++ at child (splitShowExpRight child exp)
-                              }
-                          , active = var ec
-                          })
-                    end))
+          showSequence (fn _ => false) (withNewChild showRow) tab
+            {openn = left, elems = elems, delims = delims, close = right}
 
-            fun showRow tab row =
-              case row of
-                RecordPun {id} => token id
-              | RecordRow xxx => showRecordRow tab xxx
-          in
-            showSequence (fn _ => false) (withNewChild showRow) tab
-              {openn = left, elems = elems, delims = delims, close = right}
-          end
+      | RecordUpdate {exp, hash, update} =>
+          newTab tab (fn inner =>
+            withNewChild showExp inner exp
+            ++ at inner (token hash ++ showRecordUpdate inner update))
 
       | Select {hash, label} =>
           token hash
@@ -461,6 +444,57 @@ struct
           ++ Seq.iterate op++ empty (Seq.map token contents) ++ nospace
           ++ token semicolon
 
+    end
+
+
+  and showRow tab row =
+    let
+      open Ast.Exp
+    in
+      case row of
+        RecordPun {id} => token id
+
+      | RecordRow {lab, eq, exp} =>
+          if not (isSplittableExp exp) then
+            token lab ++ token eq ++ (withNewChild showExp tab) exp
+          else
+            token lab ++ token eq
+            ++
+            newTab tab (fn expGhost =>
+              newTab tab (fn child =>
+                let
+                  val expAtChild = at child (showExp child exp)
+                in
+                  letdoc expAtChild (fn ec =>
+                    cond expGhost
+                      { inactive = cond child
+                          { inactive = var ec
+                          , active =
+                              at expGhost (splitShowExpLeft expGhost exp)
+                              ++ at child (splitShowExpRight child exp)
+                          }
+                      , active = var ec
+                      })
+                end))
+    end
+
+
+  and showRecordUpdate tab update =
+    let
+      open Ast.Exp
+    in
+      case update of
+        UpdateRows {left, elems, delims, right} =>
+          showSequence (fn _ => false) (withNewChild showRow) tab
+            {openn = left, elems = elems, delims = delims, close = right}
+
+      | UpdateRecord {left, exp, right} =>
+          token left ++ (if expStartsWithStar exp then empty else nospace)
+          ++ withNewChild showExp tab exp ++ nospace ++ token right
+
+      | UpdateTuple {left, elems, delims, right} =>
+          showSequence expStartsWithStar (withNewChild showExp) tab
+            {openn = left, elems = elems, delims = delims, close = right}
     end
 
 

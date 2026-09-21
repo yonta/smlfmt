@@ -135,6 +135,7 @@ struct
       orelse
       (case exp of
          App _ => true
+       | RecordUpdate _ => true
        | _ => false)
 
     fun isInfExp exp =

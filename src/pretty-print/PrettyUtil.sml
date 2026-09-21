@@ -36,6 +36,13 @@ struct
       \deprecation. Please use `-engine prettier` instead, \
       \which supports or-pattern."
 
+  fun smlSharpFail () =
+    raise Fail
+      "unsupported: SML# syntax. Note: you are \
+      \using `-engine pretty`, which is headed towards \
+      \deprecation. Please use `-engine prettier` instead, \
+      \which supports SML# syntax."
+
   fun sigWithtypeFail () =
     raise Fail
       "unsupported: SuccessorML withtype in signatures syntax. Note: \

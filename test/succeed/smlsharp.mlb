@@ -1,4 +1,7 @@
 $(SML_LIB)/basis/basis.mlb
 ann "allowSMLSharp true" in
   smlsharp/basic.sml
+  smlsharp/flex-record-ty.sml
+  smlsharp/record-update.sml
+  smlsharp/string-label.sml
 end

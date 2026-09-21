@@ -26,6 +26,7 @@ struct
     in
       case ty of
         Var tok => token tok
+      | Wild _ => smlSharpFail ()
       | Con {args = Ast.SyntaxSeq.Empty, id} =>
           token (MaybeLongToken.getToken id)
       | Con {args, id} =>
@@ -45,8 +46,9 @@ struct
           end
       | Record {left, elems, delims, right} =>
           let
-            fun showElem {lab, colon, ty} =
-              token lab ++ space ++ token colon ++ space ++ showTy ty
+            fun showElem (DotDotDot _) = smlSharpFail ()
+              | showElem (LabTy {lab, colon, ty}) =
+                  token lab ++ space ++ token colon ++ space ++ showTy ty
           in
             sequence left delims right (Seq.map showElem elems)
           end

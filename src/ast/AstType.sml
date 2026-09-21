@@ -41,13 +41,21 @@ struct
     *)
   structure Ty =
   struct
-    datatype ty =
+    datatype tyrow =
+      DotDotDot of Token.t (** can only appear at end of record type *)
+
+    | LabTy of {lab: Token.t, colon: Token.t, ty: ty}
+
+    and ty =
       Var of Token.t
+
+    (** SML#: _ *)
+    | Wild of Token.t
 
     (** { lab : ty, ..., lab : ty } *)
     | Record of
         { left: Token.t
-        , elems: {lab: Token.t, colon: Token.t, ty: ty} Seq.t
+        , elems: tyrow Seq.t
         , delims: Token.t Seq.t
         , right: Token.t
         }
@@ -258,6 +266,9 @@ struct
     (** # label *)
     | Select of {hash: Token.t, label: Token.t}
 
+    (** SML#: exp # { lab = exp, ... } or exp # { exp } or exp # (exp, ...) *)
+    | RecordUpdate of {exp: exp, hash: Token.t, update: record_update}
+
     (** () *)
     | Unit of {left: Token.t, right: Token.t}
 
@@ -370,6 +381,24 @@ struct
         , contents: Token.t Seq.t
         , semicolon: Token.t
         }
+
+
+    (** SML#: what follows the `#` of a record update. *)
+    and record_update =
+    (** { lab = exp, ..., lab = exp } *)
+      UpdateRows of
+        { left: Token.t
+        , elems: exp row_exp Seq.t
+        , delims: Token.t Seq.t
+        , right: Token.t
+        }
+
+    (** { exp } *)
+    | UpdateRecord of {left: Token.t, exp: exp, right: Token.t}
+
+    (** ( exp, ..., exp ) *)
+    | UpdateTuple of
+        {left: Token.t, elems: exp Seq.t, delims: Token.t Seq.t, right: Token.t}
 
 
     and dec =

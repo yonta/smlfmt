@@ -21,7 +21,7 @@ sig
   val funid: tokens -> (int, Token.t) parser
   val vid: tokens -> (int, Token.t) parser
   val longvid: tokens -> (int, MaybeLongToken.t) parser
-  val recordLabel: tokens -> (int, Token.t) parser
+  val recordLabel: AstAllows.t -> tokens -> (int, Token.t) parser
   val tycon: tokens -> (int, Token.t) parser
   val maybeLongTycon: tokens -> (int, MaybeLongToken.t) parser
   val maybeLongStrid: tokens -> (int, MaybeLongToken.t) parser
@@ -131,8 +131,8 @@ struct
         , explain = NONE
         }
 
-  fun recordLabel toks i =
-    if check toks Token.isRecordLabel i then
+  fun recordLabel allows toks i =
+    if check toks (Token.isRecordLabel allows) i then
       (i + 1, Seq.nth toks i)
     else
       ParserUtils.tokError toks

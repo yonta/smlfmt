@@ -140,7 +140,7 @@ sig
   val isConstant: token -> bool
   val isHexIntegerConstant: token -> bool
   val isDecimalIntegerConstant: token -> bool
-  val isRecordLabel: token -> bool
+  val isRecordLabel: AstAllows.t -> token -> bool
   val isDecStartToken: token -> bool
   val isStrDecStartToken: token -> bool
   val isFunDecStartToken: token -> bool
@@ -593,10 +593,11 @@ struct
       IntegerConstant => not (isHexIntegerConstant tok)
     | _ => false
 
-  fun isRecordLabel tok =
+  fun isRecordLabel allows tok =
     case getClass tok of
       Identifier => Source.nth (getSource tok) 0 <> #"'"
     | IntegerConstant => Source.nth (getSource tok) 0 <> #"0"
+    | StringConstant => AstAllows.smlSharp allows
     | _ => false
 
   val decStartTokens =

@@ -69,18 +69,33 @@ struct
         | _ => false
 
 
-      fun equal_ty (t1, t2) =
+      fun equal_tyrow (r1, r2) =
+        case (r1, r2) of
+          (Ty.DotDotDot d1, Ty.DotDotDot d2) => equal_tok (d1, d2)
+
+        | (Ty.LabTy lt1, Ty.LabTy lt2) =>
+            let
+              val checker =
+                at #lab equal_tok <&> at #colon equal_tok <&> at #ty equal_ty
+            in
+              checker (lt1, lt2)
+            end
+
+        | _ => false
+
+
+      and equal_ty (t1, t2) =
         case (t1, t2) of
           (Ty.Var v1, Ty.Var v2) => equal_tok (v1, v2)
+
+        | (Ty.Wild w1, Ty.Wild w2) => equal_tok (w1, w2)
 
         | (Ty.Record r1, Ty.Record r2) =>
             let
               val checker =
                 at #left equal_tok <&> at #right equal_tok
                 <&> at #delims (Seq.equal equal_tok)
-                <&>
-                at #elems (Seq.equal
-                  (at #lab equal_tok <&> at #colon equal_tok <&> at #ty equal_ty))
+                <&> at #elems (Seq.equal equal_tyrow)
             in
               checker (r1, r2)
             end
@@ -264,6 +279,37 @@ struct
         | _ => false
 
 
+      and equal_recordupdate (u1, u2) =
+        case (u1, u2) of
+          (Exp.UpdateRows r1, Exp.UpdateRows r2) =>
+            let
+              val checker =
+                at #left equal_tok <&> at #elems (Seq.equal equal_rowexp)
+                <&> at #delims (Seq.equal equal_tok) <&> at #right equal_tok
+            in
+              checker (r1, r2)
+            end
+
+        | (Exp.UpdateRecord r1, Exp.UpdateRecord r2) =>
+            let
+              val checker =
+                at #left equal_tok <&> at #exp equal_exp <&> at #right equal_tok
+            in
+              checker (r1, r2)
+            end
+
+        | (Exp.UpdateTuple t1, Exp.UpdateTuple t2) =>
+            let
+              val checker =
+                at #left equal_tok <&> at #elems (Seq.equal equal_exp)
+                <&> at #delims (Seq.equal equal_tok) <&> at #right equal_tok
+            in
+              checker (t1, t2)
+            end
+
+        | _ => false
+
+
       and equal_exp (e1, e2) =
         case (e1, e2) of
           (Exp.Const c1, Exp.Const c2) => equal_tok (c1, c2)
@@ -288,6 +334,15 @@ struct
 
         | (Exp.Select s1, Exp.Select s2) =>
             (at #hash equal_tok <&> at #label equal_tok) (s1, s2)
+
+        | (Exp.RecordUpdate u1, Exp.RecordUpdate u2) =>
+            let
+              val checker =
+                at #exp equal_exp <&> at #hash equal_tok
+                <&> at #update equal_recordupdate
+            in
+              checker (u1, u2)
+            end
 
         | (Exp.Unit u1, Exp.Unit u2) =>
             (at #left equal_tok <&> at #right equal_tok) (u1, u2)

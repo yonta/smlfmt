@@ -21,6 +21,8 @@ struct
       case ty of
         Var tok => token tok
 
+      | Wild tok => token tok
+
       | Con {args = Ast.SyntaxSeq.Empty, id} =>
           token (MaybeLongToken.getToken id)
 
@@ -45,14 +47,15 @@ struct
 
       | Record {left, elems, delims, right} =>
           let
-            fun showElem tab {lab, colon, ty} =
-              token lab
-              ++
-              (if
-                 Token.isSymbolicIdentifier lab
-                 orelse Token.hasCommentsAfter lab
-               then empty
-               else nospace) ++ token colon ++ showTy tab ty
+            fun showElem tab (DotDotDot ddd) = token ddd
+              | showElem tab (LabTy {lab, colon, ty}) =
+                  token lab
+                  ++
+                  (if
+                     Token.isSymbolicIdentifier lab
+                     orelse Token.hasCommentsAfter lab
+                   then empty
+                   else nospace) ++ token colon ++ showTy tab ty
           in
             showSequence (fn _ => false) (withNewChild showElem) tab
               {openn = left, elems = elems, delims = delims, close = right}
