@@ -965,6 +965,15 @@ struct
               checker (lie1, lie2)
             end
 
+        | (Str.SMLSharpFileRef f1, Str.SMLSharpFileRef f2) =>
+            let
+              val checker =
+                at #underscore equal_tok <&> at #directive equal_tok
+                <&> at #path equal_tok
+            in
+              checker (f1, f2)
+            end
+
         | (Str.MLtonOverload o1, Str.MLtonOverload o2) =>
             let
               val checker =

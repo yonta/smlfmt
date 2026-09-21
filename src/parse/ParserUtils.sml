@@ -14,6 +14,12 @@ sig
 
   val checkOptBar: AstAllows.t -> Token.t option -> string -> unit
 
+  (** Given the token just after an underscore: does `_<tok>` begin a
+    * structure-level declaration? MLton's `_prim` and friends are
+    * expressions, so they answer false here.
+    *)
+  val isUnderscoreStrDec: AstAllows.t -> Token.t -> bool
+
   val nyi: Token.t Seq.t -> string -> int -> 'a
 end =
 struct
@@ -37,6 +43,16 @@ struct
         , what = what
         , explain = explain
         }
+
+  fun isUnderscoreStrDec allows tok =
+    Token.isIdentifier tok
+    andalso
+    case Source.toString (Token.getSource tok) of
+      "overload" => true
+    | "use" => AstAllows.smlSharp allows
+    | "interface" => AstAllows.smlSharp allows
+    | _ => false
+
 
   fun errorIfInfixNotOpped infdict opp vid =
     if InfixDict.isInfix infdict vid andalso not (Option.isSome opp) then

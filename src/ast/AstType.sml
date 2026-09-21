@@ -715,6 +715,13 @@ struct
         , endd: Token.t
         }
 
+    (** SML#: _use "path" and _interface "path" *)
+    | SMLSharpFileRef of
+        { underscore: Token.t (** must be exactly adjacent to the directive *)
+        , directive: Token.t (** use or interface *)
+        , path: Token.t
+        }
+
     (** _overload prec name : ty as longvid [and longvid ...] *)
     | MLtonOverload of
         { underscore: Token.t

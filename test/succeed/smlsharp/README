@@ -13,13 +13,18 @@ See the file ../smlsharp.mlb:
 This allows us to test SML# syntax while using the same test command for all
 test files.
 
-Every file here should compile with the real SML# compiler. Not everything the
-grammar derives is accepted: for example a flexible record type is rejected in
-a `type` declaration, so it only appears as a type annotation. Check a file
-with:
+Every file here should be accepted by the real SML# compiler. Not everything
+the grammar derives is accepted: for example a flexible record type is
+rejected in a `type` declaration, so it only appears as a type annotation.
+Check a file with:
 
   echo '_require "basis.smi"' > foo.smi
   smlsharp -c foo.sml
+
+Two of the files need a different check. `_use` is only accepted in an
+interactive session, so use.sml is checked with `smlsharp < use.sml`.
+`_interface` is only accepted when compiling, and interface.sml needs a
+matching interface.smi next to it.
 
 Note that SML# interface files (.smi) are a different grammar and are not
 covered here.

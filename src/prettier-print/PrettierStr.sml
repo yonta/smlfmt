@@ -139,6 +139,9 @@ struct
             , endd = endd
             }
 
+      | SMLSharpFileRef {underscore, directive, path} =>
+          token underscore ++ nospace ++ token directive ++ token path
+
       (** This is MLton-specific. Useful for testing by parsing the entire
         * MLton implementation of the standard basis.
         *)

@@ -467,7 +467,52 @@ struct
         end
 
 
-      fun consume_MLtonOverload underscore i =
+      (** _
+        *  ^
+        *
+        * MLton's `_overload`, or SML#'s `_use` and `_interface`.
+        *)
+      fun consume_underscoreStrDec underscore i =
+        let
+          fun err () =
+            ParserUtils.error
+              { pos = Token.getSource underscore
+              , what = "Unexpected token."
+              , explain = SOME "Expected beginning of top-level declaration."
+              }
+
+          val directive =
+            if i < numToks andalso ParserUtils.isUnderscoreStrDec allows (tok i) then
+              Source.toString (Token.getSource (tok i))
+            else
+              err ()
+        in
+          if directive = "overload" then consume_MLtonOverload underscore i
+          else consume_SMLSharpFileRef underscore i
+        end
+
+
+      (** _use "path" or _interface "path"
+        *  ^
+        *)
+      and consume_SMLSharpFileRef underscore i =
+        let
+          val (i, directive) = (i + 1, tok i)
+          val (i, path) =
+            if check Token.isStringConstant at i then
+              (i + 1, tok i)
+            else
+              ParserUtils.tokError toks
+                {pos = i, what = "Expected string literal.", explain = NONE}
+        in
+          ( i
+          , Ast.Str.SMLSharpFileRef
+              {underscore = underscore, directive = directive, path = path}
+          )
+        end
+
+
+      and consume_MLtonOverload underscore i =
         let
           fun err () =
             ParserUtils.error
@@ -480,15 +525,7 @@ struct
             err ()
           else
             let
-              val nextTok = tok i
-              val isMLtonThing =
-                Token.isIdentifier nextTok
-                andalso
-                case Source.toString (Token.getSource nextTok) of
-                  "overload" => true
-                | _ => false
-              val _ = if isMLtonThing then () else err ()
-              val (i, overload) = (i + 1, nextTok)
+              val (i, overload) = (i + 1, tok i)
               val (i, prec) =
                 if check Token.isDecimalIntegerConstant i then
                   (i + 1, tok i)
@@ -547,7 +584,7 @@ struct
         else if
           isReserved Token.Underscore i
         then
-          let val (i, strdec) = consume_MLtonOverload (tok i) (i + 1)
+          let val (i, strdec) = consume_underscoreStrDec (tok i) (i + 1)
           in ((i, infdict), Ast.StrDec strdec)
           end
         else if

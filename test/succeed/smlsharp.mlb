@@ -4,4 +4,6 @@ ann "allowSMLSharp true" in
   smlsharp/flex-record-ty.sml
   smlsharp/record-update.sml
   smlsharp/string-label.sml
+  smlsharp/interface.sml
+  smlsharp/use.sml
 end

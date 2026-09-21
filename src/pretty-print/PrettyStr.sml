@@ -96,6 +96,8 @@ struct
           (token locall $$ indent (showStrDec strdec1) $$ token inn
            $$ indent (showStrDec strdec2) $$ token endd)
 
+    | Ast.Str.SMLSharpFileRef _ => smlSharpFail ()
+
     (** This is MLton-specific. Useful for testing by parsing the entire
       * MLton implementation of the standard basis.
       *)

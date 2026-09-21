@@ -739,6 +739,16 @@ struct
         dec {forceExactlyOne = false, allows = allows} toks xx
 
 
+      (** An expression has to stop in front of `_overload`, `_use` and
+        * `_interface`, which are structure-level declarations. The MLton
+        * directives (`_prim` and friends) are expressions, so they keep
+        * being consumed as arguments of an application.
+        *)
+      fun startsUnderscoreStrDec i =
+        isReserved Token.Underscore at i andalso i + 1 < numToks
+        andalso ParserUtils.isUnderscoreStrDec allows (tok (i + 1))
+
+
       fun consume_exp infdict restriction i =
         let
           val (i, exp) =
@@ -841,6 +851,7 @@ struct
             if
               i >= numToks
               orelse check (endsCurrentExp infdict restriction) at i
+              orelse startsUnderscoreStrDec i
             then (false, (i, exp))
 
             else if
