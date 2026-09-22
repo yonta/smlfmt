@@ -154,26 +154,175 @@ struct
     end
 
 
+  (** `type ...` and `eqtype ...` lay out the same way; only the keyword that
+    * starts the first binding differs.
+    *)
+  fun showTypbinds tab starter elems delims =
+    newTab tab (fn inner =>
+      let
+        fun showOne (delim, tb) =
+          at inner (token delim ++ showTypbind inner tb)
+      in
+        at inner
+          (Seq.iterate op++
+             (token starter ++ showTypbind inner (Seq.nth elems 0))
+             (Seq.map showOne (Seq.zip (delims, Seq.drop elems 1))))
+      end)
+
+
+  (** Laid out like SML's `case`: the bars line up under the keyword, and the
+    * first branch is padded to match.
+    *)
+  fun showOverloadExp tab
+    (SmiAst.Dec.OverloadExp {casee, tyvar, inn, ty, off, elems, delims}) =
+    let
+      fun showMatch inner {ty, arrow, inst} =
+        withNewChild showTy inner ty ++ token arrow
+        ++
+        withNewChildWithStyle (indentedAtLeastBy 4) showOverloadInst inner inst
+
+      fun mk inner (delim, m) =
+        at inner
+          ((case delim of
+              SOME d => token d
+            | NONE => cond inner {active = space ++ space, inactive = empty})
+           ++ showMatch inner m)
+    in
+      newTabWithStyle tab (rigidInplace, fn inner1 =>
+        newTab inner1 (fn inner2 =>
+          at inner1 (token casee ++ token tyvar ++ token inn)
+          ++ at inner2 (showTy inner2 ty)
+          ++ cond inner2 {inactive = token off, active = at inner1 (token off)}
+          ++
+          Seq.iterate op++ (mk inner1 (NONE, Seq.nth elems 0))
+            (Seq.zipWith (mk inner1) (Seq.map SOME delims, Seq.drop elems 1))))
+    end
+
+
+  and showOverloadInst tab inst =
+    let
+      open SmiAst.Dec
+    in
+      case inst of
+        InstOverload e => showOverloadExp tab e
+
+      | InstLongId id => token (MaybeLongToken.getToken id)
+
+      | InstParens {left, inst, right} =>
+          token left ++ nospace ++ showOverloadInst tab inst ++ nospace
+          ++ token right
+    end
+
+
+  fun showConbind tab {opp, vid, arg} =
+    showMaybeOpToken opp vid
+    ++
+    (case arg of
+       NONE => empty
+     | SOME {off, ty} => token off ++ withNewChild showTy tab ty)
+
+
+  fun showDatbind tab {tyvars, tycon, eq, elems, delims} =
+    showTokenSyntaxSeq tab tyvars ++ token tycon ++ token eq
+    ++
+    newTab tab (fn inner =>
+      let
+        fun showOne (delim, c) =
+          at inner (token delim ++ showConbind inner c)
+      in
+        at inner (showConbind inner (Seq.nth elems 0))
+        ++
+        Seq.iterate op++ empty (Seq.map showOne (Seq.zip
+          (delims, Seq.drop elems 1)))
+      end)
+
+
+  fun showValbind tab bind =
+    let
+      open SmiAst.Dec
+    in
+      case bind of
+        ValTy {vid, colon, ty} =>
+          token vid ++ hugNext vid ++ token colon ++ withNewChild showTy tab ty
+
+      | ValAlias {vid, eq, id} =>
+          token vid ++ token eq ++ token (MaybeLongToken.getToken id)
+
+      | ValBuiltin {vid, eq, underscore, builtin, vall, builtinVid, colon, ty} =>
+          token vid ++ token eq ++ token underscore ++ nospace ++ token builtin
+          ++ token vall ++ token builtinVid ++ hugNext builtinVid ++ token colon
+          ++ withNewChild showTy tab ty
+
+      | ValOverload {vid, eq, exp} =>
+          token vid ++ token eq ++ withNewChild showOverloadExp tab exp
+    end
+
+
   fun showDec tab dec =
     let
       open SmiAst.Dec
     in
       case dec of
-        Val {vall, vid, colon, ty} =>
+        Val {vall, bind} =>
           newTab tab (fn inner =>
-            at inner
-              (token vall ++ token vid ++ hugNext vid ++ token colon
-               ++ withNewChild showTy inner ty))
+            at inner (token vall ++ showValbind inner bind))
 
-      | Type {typee, elems, delims} =>
+      | Type {typee, elems, delims} => showTypbinds tab typee elems delims
+
+      | Eqtype {eqtypee, elems, delims} => showTypbinds tab eqtypee elems delims
+
+      | Datatype {datatypee, elems, delims, withtypee} =>
           newTab tab (fn inner =>
             let
-              fun showOne (starter, tb) =
-                at inner (token starter ++ showTypbind inner tb)
+              fun showOne (delim, db) =
+                at inner (token delim ++ showDatbind inner db)
+
+              val withtypeDoc =
+                case withtypee of
+                  NONE => empty
+                | SOME {withtypee, elems, delims} =>
+                    at inner (showTypbinds inner withtypee elems delims)
             in
               at inner
                 (Seq.iterate op++
-                   (token typee ++ showTypbind inner (Seq.nth elems 0))
+                   (token datatypee ++ showDatbind inner (Seq.nth elems 0))
+                   (Seq.map showOne (Seq.zip (delims, Seq.drop elems 1))))
+              ++ withtypeDoc
+            end)
+
+      | DatatypeRep {left_datatypee, tycon, eq, right_datatypee, id} =>
+          token left_datatypee ++ token tycon ++ token eq
+          ++ token right_datatypee ++ token (MaybeLongToken.getToken id)
+
+      | DatatypeBuiltin
+          { left_datatypee
+          , tycon
+          , eq
+          , underscore
+          , builtin
+          , right_datatypee
+          , builtinTycon
+          } =>
+          token left_datatypee ++ token tycon ++ token eq ++ token underscore
+          ++ nospace ++ token builtin ++ token right_datatypee
+          ++ token builtinTycon
+
+      | Exception {exceptionn, elems, delims} =>
+          newTab tab (fn inner =>
+            let
+              fun showExbind tab eb =
+                case eb of
+                  ExnNew c => showConbind tab c
+                | ExnRep {opp, vid, eq, id} =>
+                    showMaybeOpToken opp vid ++ token eq
+                    ++ token (MaybeLongToken.getToken id)
+
+              fun showOne (delim, eb) =
+                at inner (token delim ++ showExbind inner eb)
+            in
+              at inner
+                (Seq.iterate op++
+                   (token exceptionn ++ showExbind inner (Seq.nth elems 0))
                    (Seq.map showOne (Seq.zip (delims, Seq.drop elems 1))))
             end)
     end
@@ -235,8 +384,15 @@ struct
 
   fun showRequire tab r =
     case r of
-      SmiAst.Require {underscore, directive, path} =>
-        token underscore ++ nospace ++ token directive ++ token path
+      SmiAst.Require {underscore, directive, locall, path, options} =>
+        token underscore ++ nospace ++ token directive
+        ++ showOption token locall ++ token path
+        ++ Seq.iterate op++ empty (Seq.map token options)
+
+    | SmiAst.Use {underscore, directive, locall, path} =>
+        token underscore ++ nospace ++ token directive ++ token locall
+        ++ token path
+
     | SmiAst.RequireSemicolon tok => nospace ++ token tok
 
 
@@ -244,10 +400,23 @@ struct
     | requireStartsLine _ = true
 
 
+  fun showTopDec tab td =
+    case td of
+      SmiAst.TopStrDec d => showStrDec tab d
+
+    | SmiAst.TopInfix {infixx, precedence, elems} =>
+        token infixx ++ showOption token precedence
+        ++ Seq.iterate op++ empty (Seq.map token elems)
+
+
+  fun topDecStartsLine (SmiAst.TopStrDec d) = strDecStartsLine d
+    | topDecStartsLine _ = true
+
+
   fun showAst (SmiAst.Interface {requires, topdecs}) =
     joinAt root (Seq.append
       ( Seq.map (fn r => (requireStartsLine r, showRequire root r)) requires
-      , Seq.map (fn d => (strDecStartsLine d, showStrDec root d)) topdecs
+      , Seq.map (fn d => (topDecStartsLine d, showTopDec root d)) topdecs
       ))
 
 

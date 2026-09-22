@@ -27,6 +27,12 @@ struct
 
   infix 2 <&>
 
+  fun equal_op eq (op1, op2) =
+    case (op1, op2) of
+      (SOME x, SOME y) => eq (x, y)
+    | (NONE, NONE) => true
+    | _ => false
+
   (* ======================================================================= *)
 
   open SmiAst
@@ -193,15 +199,134 @@ struct
         | _ => false
 
 
+      fun equal_overloadExp (Dec.OverloadExp o1, Dec.OverloadExp o2) =
+        let
+          fun equal_match (m1, m2) =
+            let
+              val checker =
+                at #ty equal_ty <&> at #arrow equal_tok
+                <&> at #inst equal_overloadInst
+            in
+              checker (m1, m2)
+            end
+
+          val checker =
+            at #casee equal_tok <&> at #tyvar equal_tok <&> at #inn equal_tok
+            <&> at #ty equal_ty <&> at #off equal_tok
+            <&> at #elems (Seq.equal equal_match)
+            <&> at #delims (Seq.equal equal_tok)
+        in
+          checker (o1, o2)
+        end
+
+
+      and equal_overloadInst (i1, i2) =
+        case (i1, i2) of
+          (Dec.InstOverload e1, Dec.InstOverload e2) =>
+            equal_overloadExp (e1, e2)
+
+        | (Dec.InstLongId l1, Dec.InstLongId l2) => equal_longtok (l1, l2)
+
+        | (Dec.InstParens p1, Dec.InstParens p2) =>
+            let
+              val checker =
+                at #left equal_tok <&> at #inst equal_overloadInst
+                <&> at #right equal_tok
+            in
+              checker (p1, p2)
+            end
+
+        | _ => false
+
+
+      fun equal_valbind (b1, b2) =
+        case (b1, b2) of
+          (Dec.ValTy v1, Dec.ValTy v2) =>
+            let
+              val checker =
+                at #vid equal_tok <&> at #colon equal_tok <&> at #ty equal_ty
+            in
+              checker (v1, v2)
+            end
+
+        | (Dec.ValAlias v1, Dec.ValAlias v2) =>
+            let
+              val checker =
+                at #vid equal_tok <&> at #eq equal_tok <&> at #id equal_longtok
+            in
+              checker (v1, v2)
+            end
+
+        | (Dec.ValBuiltin v1, Dec.ValBuiltin v2) =>
+            let
+              val checker =
+                at #vid equal_tok <&> at #eq equal_tok
+                <&> at #underscore equal_tok <&> at #builtin equal_tok
+                <&> at #vall equal_tok <&> at #builtinVid equal_tok
+                <&> at #colon equal_tok <&> at #ty equal_ty
+            in
+              checker (v1, v2)
+            end
+
+        | (Dec.ValOverload v1, Dec.ValOverload v2) =>
+            let
+              val checker =
+                at #vid equal_tok <&> at #eq equal_tok
+                <&> at #exp equal_overloadExp
+            in
+              checker (v1, v2)
+            end
+
+        | _ => false
+
+
+      fun equal_conbind (c1, c2) =
+        let
+          fun equal_arg (a1, a2) =
+            let val checker = at #off equal_tok <&> at #ty equal_ty
+            in checker (a1, a2)
+            end
+
+          val checker =
+            at #opp (equal_op equal_tok) <&> at #vid equal_tok
+            <&> at #arg (equal_op equal_arg)
+        in
+          checker (c1, c2)
+        end
+
+
+      fun equal_datbind (d1, d2) =
+        let
+          val checker =
+            at #tyvars (equal_syntaxseq equal_tok) <&> at #tycon equal_tok
+            <&> at #eq equal_tok <&> at #elems (Seq.equal equal_conbind)
+            <&> at #delims (Seq.equal equal_tok)
+        in
+          checker (d1, d2)
+        end
+
+
+      fun equal_exbind (e1, e2) =
+        case (e1, e2) of
+          (Dec.ExnNew c1, Dec.ExnNew c2) => equal_conbind (c1, c2)
+
+        | (Dec.ExnRep r1, Dec.ExnRep r2) =>
+            let
+              val checker =
+                at #opp (equal_op equal_tok) <&> at #vid equal_tok
+                <&> at #eq equal_tok <&> at #id equal_longtok
+            in
+              checker (r1, r2)
+            end
+
+        | _ => false
+
+
       fun equal_dec (d1, d2) =
         case (d1, d2) of
           (Dec.Val v1, Dec.Val v2) =>
-            let
-              val checker =
-                at #vall equal_tok <&> at #vid equal_tok <&> at #colon equal_tok
-                <&> at #ty equal_ty
-            in
-              checker (v1, v2)
+            let val checker = at #vall equal_tok <&> at #bind equal_valbind
+            in checker (v1, v2)
             end
 
         | (Dec.Type t1, Dec.Type t2) =>
@@ -211,6 +336,65 @@ struct
                 <&> at #delims (Seq.equal equal_tok)
             in
               checker (t1, t2)
+            end
+
+        | (Dec.Eqtype t1, Dec.Eqtype t2) =>
+            let
+              val checker =
+                at #eqtypee equal_tok <&> at #elems (Seq.equal equal_typbind)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (t1, t2)
+            end
+
+        | (Dec.Datatype d1, Dec.Datatype d2) =>
+            let
+              fun equal_withtypee (w1, w2) =
+                let
+                  val checker =
+                    at #withtypee equal_tok
+                    <&> at #elems (Seq.equal equal_typbind)
+                    <&> at #delims (Seq.equal equal_tok)
+                in
+                  checker (w1, w2)
+                end
+
+              val checker =
+                at #datatypee equal_tok <&> at #elems (Seq.equal equal_datbind)
+                <&> at #delims (Seq.equal equal_tok)
+                <&> at #withtypee (equal_op equal_withtypee)
+            in
+              checker (d1, d2)
+            end
+
+        | (Dec.DatatypeRep r1, Dec.DatatypeRep r2) =>
+            let
+              val checker =
+                at #left_datatypee equal_tok <&> at #tycon equal_tok
+                <&> at #eq equal_tok <&> at #right_datatypee equal_tok
+                <&> at #id equal_longtok
+            in
+              checker (r1, r2)
+            end
+
+        | (Dec.DatatypeBuiltin b1, Dec.DatatypeBuiltin b2) =>
+            let
+              val checker =
+                at #left_datatypee equal_tok <&> at #tycon equal_tok
+                <&> at #eq equal_tok <&> at #underscore equal_tok
+                <&> at #builtin equal_tok <&> at #right_datatypee equal_tok
+                <&> at #builtinTycon equal_tok
+            in
+              checker (b1, b2)
+            end
+
+        | (Dec.Exception e1, Dec.Exception e2) =>
+            let
+              val checker =
+                at #exceptionn equal_tok <&> at #elems (Seq.equal equal_exbind)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (e1, e2)
             end
 
         | _ => false
@@ -259,15 +443,41 @@ struct
         | _ => false
 
 
+      fun equal_topdec (t1, t2) =
+        case (t1, t2) of
+          (TopStrDec d1, TopStrDec d2) => equal_strdec (d1, d2)
+
+        | (TopInfix i1, TopInfix i2) =>
+            let
+              val checker =
+                at #infixx equal_tok <&> at #precedence (equal_op equal_tok)
+                <&> at #elems (Seq.equal equal_tok)
+            in
+              checker (i1, i2)
+            end
+
+        | _ => false
+
+
       fun equal_require (r1, r2) =
         case (r1, r2) of
           (Require q1, Require q2) =>
             let
               val checker =
                 at #underscore equal_tok <&> at #directive equal_tok
-                <&> at #path equal_tok
+                <&> at #locall (equal_op equal_tok) <&> at #path equal_tok
+                <&> at #options (Seq.equal equal_tok)
             in
               checker (q1, q2)
+            end
+
+        | (Use u1, Use u2) =>
+            let
+              val checker =
+                at #underscore equal_tok <&> at #directive equal_tok
+                <&> at #locall equal_tok <&> at #path equal_tok
+            in
+              checker (u1, u2)
             end
 
         | (RequireSemicolon s1, RequireSemicolon s2) => equal_tok (s1, s2)
@@ -277,7 +487,7 @@ struct
 
       val checker =
         at #requires (Seq.equal equal_require)
-        <&> at #topdecs (Seq.equal equal_strdec)
+        <&> at #topdecs (Seq.equal equal_topdec)
     in
       checker (i1, i2)
     end

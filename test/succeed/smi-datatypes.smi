@@ -1,0 +1,27 @@
+_require "basis.smi"
+
+structure SmiDatatypes =
+struct
+  (* an eqtype always gives a runtime representation; there is no bare form *)
+  eqtype time (= intInf)
+  eqtype 'a keyed (= int) and syserror (= int)
+
+  datatype color = Red | Green | Blue
+  datatype 'a tree = Leaf | Node of 'a * 'a tree * 'a tree
+  datatype ('a, 'b) pair = Pair of 'a * 'b and unit_like = Only
+  datatype opped = op + of int | op - of int
+
+  (* withtype takes only the transparent form of a type binding *)
+  datatype shape = Circle of real | Square of real
+  withtype named = shape * string
+
+  (* replication, and the builtin form that has no SML '97 counterpart *)
+  datatype ord = datatype Order.order
+  datatype int32 = _builtin datatype int
+
+  exception NotFound
+  exception Bad of string and Worse of int * int
+
+  (* exception replication, which SML '97 allows in a dec but not in a spec *)
+  exception Alias = General.Fail
+end

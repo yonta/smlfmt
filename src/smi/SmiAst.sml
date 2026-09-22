@@ -109,12 +109,109 @@ struct
         , right: Token.t
         }
 
+    (** The overload declaration, `val + = case 'a in ty of ty => inst | ...`.
+      * It reuses `case`, `in` and `of` at the type level.
+      *)
+    datatype overload_inst =
+      InstOverload of overload_exp
+    | InstLongId of MaybeLongToken.t
+    | InstParens of {left: Token.t, inst: overload_inst, right: Token.t}
+
+    and overload_exp =
+      OverloadExp of
+        { casee: Token.t
+        , tyvar: Token.t
+        , inn: Token.t
+        , ty: Ty.t
+        , off: Token.t
+        , elems: {ty: Ty.t, arrow: Token.t, inst: overload_inst} Seq.t
+        , delims: Token.t Seq.t
+        }
+
+    (** Unlike SML '97, `val` in a .smi cannot be chained with `and`. *)
+    datatype valbind =
+    (** vid : ty *)
+      ValTy of {vid: Token.t, colon: Token.t, ty: Ty.t}
+
+    (** vid = longvid *)
+    | ValAlias of {vid: Token.t, eq: Token.t, id: MaybeLongToken.t}
+
+    (** vid = _builtin val vid : ty *)
+    | ValBuiltin of
+        { vid: Token.t
+        , eq: Token.t
+        , underscore: Token.t
+        , builtin: Token.t
+        , vall: Token.t
+        , builtinVid: Token.t
+        , colon: Token.t
+        , ty: Ty.t
+        }
+
+    (** vid = case 'a in ty of ... *)
+    | ValOverload of {vid: Token.t, eq: Token.t, exp: overload_exp}
+
+    (** vid [of ty], with an optional `op` *)
+    type conbind =
+      {opp: Token.t option, vid: Token.t, arg: {off: Token.t, ty: Ty.t} option}
+
+    type datbind =
+      { tyvars: Token.t SyntaxSeq.t
+      , tycon: Token.t
+      , eq: Token.t
+      , elems: conbind Seq.t
+      , delims: Token.t Seq.t
+      }
+
+    datatype exbind =
+      ExnNew of conbind
+
+    (** vid = longvid -- exception replication, absent from SML '97 specs *)
+    | ExnRep of
+        {opp: Token.t option, vid: Token.t, eq: Token.t, id: MaybeLongToken.t}
+
     datatype dec =
-    (** val vid : ty *)
-      Val of {vall: Token.t, vid: Token.t, colon: Token.t, ty: Ty.t}
+    (** val valbind *)
+      Val of {vall: Token.t, bind: valbind}
 
     (** type typbind [and typbind ...] *)
     | Type of {typee: Token.t, elems: typbind Seq.t, delims: Token.t Seq.t}
+
+    (** eqtype typbind [and ...] -- always the opaque form *)
+    | Eqtype of {eqtypee: Token.t, elems: typbind Seq.t, delims: Token.t Seq.t}
+
+    (** datatype datbind [and ...] [withtype typbind [and ...]] *)
+    | Datatype of
+        { datatypee: Token.t
+        , elems: datbind Seq.t
+        , delims: Token.t Seq.t
+        , withtypee:
+            {withtypee: Token.t, elems: typbind Seq.t, delims: Token.t Seq.t} option
+        }
+
+    (** datatype tycon = datatype longtycon *)
+    | DatatypeRep of
+        { left_datatypee: Token.t
+        , tycon: Token.t
+        , eq: Token.t
+        , right_datatypee: Token.t
+        , id: MaybeLongToken.t
+        }
+
+    (** datatype tycon = _builtin datatype tycon *)
+    | DatatypeBuiltin of
+        { left_datatypee: Token.t
+        , tycon: Token.t
+        , eq: Token.t
+        , underscore: Token.t
+        , builtin: Token.t
+        , right_datatypee: Token.t
+        , builtinTycon: Token.t
+        }
+
+    (** exception exbind [and ...] *)
+    | Exception of
+        {exceptionn: Token.t, elems: exbind Seq.t, delims: Token.t Seq.t}
   end
 
 
@@ -153,14 +250,35 @@ struct
     * Whole file.
     *)
 
+  datatype topdec =
+    TopStrDec of Str.strdec
+
+  (** infix [prec] vid ... -- only at top level, never inside a struct.
+    * `nonfix` has a rule in interface.grm but interface.lex never produces the
+    * token, so it is unreachable and not represented here.
+    *)
+  | TopInfix of
+      {infixx: Token.t, precedence: Token.t option, elems: Token.t Seq.t}
+
   datatype require =
-  (** _require "path" *)
-    Require of {underscore: Token.t, directive: Token.t, path: Token.t}
+  (** _require ["local"] "path" [option ...] *)
+    Require of
+      { underscore: Token.t
+      , directive: Token.t
+      , locall: Token.t option
+      , path: Token.t
+      , options: Token.t Seq.t
+      }
+
+  (** _use local "path" -- the bare `_use` of .sml is not allowed here *)
+  | Use of
+      {underscore: Token.t, directive: Token.t, locall: Token.t, path: Token.t}
+
   | RequireSemicolon of Token.t
 
   datatype ast =
   (** `_require` may only appear before the declarations, never between them. *)
-    Interface of {requires: require Seq.t, topdecs: Str.strdec Seq.t}
+    Interface of {requires: require Seq.t, topdecs: topdec Seq.t}
 
   type t = ast
 

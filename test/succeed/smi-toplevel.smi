@@ -1,0 +1,24 @@
+(* `_require` and friends may only appear before the declarations, and `infix`
+ * only at top level -- interface.grm puts it in `topdec`, not in `strdec`.
+ *)
+
+_require "basis.smi"
+_require local "internal.smi"
+_require "other.smi" init
+_use local "helper.sml"
+
+infix 7 * /
+infixr 5 ::
+infix +
+
+structure SmiToplevel =
+struct
+  val plain : int
+  val alias = General.+
+  val fromBuiltin = _builtin val TypeCast : ['a#boxed. boxed -> 'a]
+  val + =
+    case 'a in 'a * 'a -> 'a of
+      int => Int32.add
+    | word => Word32.add
+    | 'b => (Real64.add)
+end
