@@ -38,7 +38,7 @@ struct
   open SmiAst
 
 
-  fun equal {tabWidth: int} (Interface i1, Interface i2) =
+  fun equal {tabWidth: int} (ast1, ast2) =
     let
 
       fun equal_tok (t1, t2) =
@@ -733,11 +733,57 @@ struct
         | _ => false
 
 
-      val checker =
-        at #requires (Seq.equal equal_require)
-        <&> at #topdecs (Seq.equal equal_topdec)
+      fun equal_sigdec (Sig.Signature s1, Sig.Signature s2) =
+        let
+          fun equal_one (a1, a2) =
+            let
+              val checker =
+                at #ident equal_tok <&> at #eq equal_tok
+                <&> at #sigexp equal_sigexp
+            in
+              checker (a1, a2)
+            end
+
+          val checker =
+            at #signaturee equal_tok <&> at #elems (Seq.equal equal_one)
+            <&> at #delims (Seq.equal equal_tok)
+        in
+          checker (s1, s2)
+        end
+
+
+      fun equal_includePath (IncludePath i1, IncludePath i2) =
+        let val checker = at #includee equal_tok <&> at #path equal_tok
+        in checker (i1, i2)
+        end
+
+
+      fun equal_sigdecItem (d1, d2) =
+        case (d1, d2) of
+          (SigDec a1, SigDec a2) => equal_sigdec (a1, a2)
+        | (SigSemicolon s1, SigSemicolon s2) => equal_tok (s1, s2)
+        | _ => false
     in
-      checker (i1, i2)
+      case (ast1, ast2) of
+        (Interface i1, Interface i2) =>
+          let
+            val checker =
+              at #requires (Seq.equal equal_require)
+              <&> at #topdecs (Seq.equal equal_topdec)
+          in
+            checker (i1, i2)
+          end
+
+      | (Includes c1, Includes c2) =>
+          let
+            val checker =
+              at #includes (Seq.equal equal_includePath)
+              <&> at #sigdecs (Seq.equal equal_sigdecItem)
+          in
+            checker (c1, c2)
+          end
+
+      | _ => false
     end
 
 end

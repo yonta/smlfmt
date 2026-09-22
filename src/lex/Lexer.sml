@@ -33,7 +33,8 @@ struct
          {header = "SYNTAX ERROR", pos = pos, what = what, explain = explain})
 
 
-  fun nextWith {smi: bool} allows (src: Source.t) : Token.Pretoken.t option =
+  fun nextWith {smi: bool, afterHash: bool} allows (src: Source.t) :
+    Token.Pretoken.t option =
     let
       val startOffset = Source.absoluteStartOffset src
       val src = Source.wholeFile src
@@ -486,12 +487,21 @@ struct
                   , what = "Unexpected dot."
                   , explain = SOME "Qualifiers cannot start with a prime (')"
                   }
+            (** In `.smi` a dot qualifies a name only when an identifier
+              * follows, and never right after a `#`: SML#'s own lexer has no
+              * qualified names, so `['a#reify.int -> 'a]` is the kind `#reify`
+              * followed by the quantifier's dot.
+              *)
             else if
               is #"." at s
               andalso
               not
-                (smi andalso not (check LexUtils.isSymbolic at s + 1)
-                 andalso not (check LexUtils.isLetter at s + 1))
+                (smi
+                 andalso
+                 (afterHash
+                  orelse
+                  (not (check LexUtils.isSymbolic at s + 1)
+                   andalso not (check LexUtils.isLetter at s + 1))))
             then
               loop_continueLongIdentifier (s + 1)
                 {longStart = if isQualified then longStart else SOME idStart}
@@ -696,7 +706,7 @@ struct
 
 
   fun next allows src =
-    nextWith {smi = false} allows src
+    nextWith {smi = false, afterHash = false} allows src
 
   fun tokensWith {smi: bool} allows src =
     let
@@ -714,9 +724,20 @@ struct
         if offset >= endOffset then
           finish acc
         else
-          case nextWith {smi = smi} allows (Source.drop src offset) of
-            NONE => finish acc
-          | SOME tok => loop (tok :: acc) (tokEndOffset tok)
+          let
+            val afterHash =
+              case acc of
+                prev :: _ =>
+                  Token.Pretoken.getClass prev = Token.Reserved Token.Hash
+              | [] => false
+          in
+            case
+              nextWith {smi = smi, afterHash = afterHash} allows
+                (Source.drop src offset)
+            of
+              NONE => finish acc
+            | SOME tok => loop (tok :: acc) (tokEndOffset tok)
+          end
     in
       loop [] startOffset
     end

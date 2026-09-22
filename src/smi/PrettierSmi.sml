@@ -645,11 +645,45 @@ struct
     | topDecStartsLine _ = true
 
 
-  fun showAst (SmiAst.Interface {requires, topdecs}) =
-    joinAt root (Seq.append
-      ( Seq.map (fn r => (requireStartsLine r, showRequire root r)) requires
-      , Seq.map (fn d => (topDecStartsLine d, showTopDec root d)) topdecs
-      ))
+  fun showSigDec tab (SmiAst.Sig.Signature {signaturee, elems, delims}) =
+    let
+      fun showOne (starter, {ident, eq, sigexp}) =
+        at tab (token starter ++ token ident ++ token eq)
+        ++ showSigExpInDec tab sigexp
+    in
+      Seq.iterate op++ (showOne (signaturee, Seq.nth elems 0))
+        (Seq.zipWith showOne (delims, Seq.drop elems 1))
+    end
+
+
+  fun showIncludePath (SmiAst.IncludePath {includee, path}) =
+    token includee ++ token path
+
+
+  fun showSigDecItem tab item =
+    case item of
+      SmiAst.SigDec d => showSigDec tab d
+    | SmiAst.SigSemicolon tok' => nospace ++ token tok'
+
+
+  fun sigDecItemStartsLine (SmiAst.SigSemicolon _) = false
+    | sigDecItemStartsLine _ = true
+
+
+  fun showAst ast =
+    case ast of
+      SmiAst.Interface {requires, topdecs} =>
+        joinAt root (Seq.append
+          ( Seq.map (fn r => (requireStartsLine r, showRequire root r)) requires
+          , Seq.map (fn d => (topDecStartsLine d, showTopDec root d)) topdecs
+          ))
+
+    | SmiAst.Includes {includes, sigdecs} =>
+        joinAt root (Seq.append
+          ( Seq.map (fn i => (true, showIncludePath i)) includes
+          , Seq.map (fn d => (sigDecItemStartsLine d, showSigDecItem root d))
+              sigdecs
+          ))
 
 
   fun pretty {ribbonFrac, maxWidth, tabWidth, indent, debug} ast =

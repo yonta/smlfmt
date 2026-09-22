@@ -1317,6 +1317,32 @@ struct
           end
 
 
+      (** signature sigid = sigexp [and sigid = sigexp ...]
+        * ^
+        *)
+      fun parse_sigdec i =
+        let
+          fun parseElem i =
+            let
+              val (i, ident) = parse_sigid i
+              val (i, eq) = parse_reserved Token.Equal i
+              val (i, sigexp) = parse_sigexp i
+            in
+              (i, {ident = ident, eq = eq, sigexp = sigexp})
+            end
+
+          val signaturee = tok i
+          val (i, {elems, delims}) =
+            parse_oneOrMoreDelimitedByReserved
+              {parseElem = parseElem, delim = Token.And} (i + 1)
+        in
+          ( i
+          , SmiAst.Sig.Signature
+              {signaturee = signaturee, elems = elems, delims = delims}
+          )
+        end
+
+
       fun isRequireStart i =
         isReserved Token.Semicolon i
         orelse
@@ -1375,8 +1401,51 @@ struct
           end
 
 
-      val (i, requires) = parse_zeroOrMoreWhile isRequireStart parse_require 0
-      val (i, topdecs) = parse_zeroOrMoreWhile isTopDecStart parse_topdec i
+      fun parse_interfaceForm i =
+        let
+          val (i, requires) =
+            parse_zeroOrMoreWhile isRequireStart parse_require i
+          val (i, topdecs) = parse_zeroOrMoreWhile isTopDecStart parse_topdec i
+        in
+          (i, SmiAst.Interface {requires = requires, topdecs = topdecs})
+        end
+
+
+      fun parse_includesForm i =
+        let
+          fun parseInclude i =
+            let
+              val includee = tok i
+              val (i, path) = parse_string (i + 1)
+            in
+              (i, SmiAst.IncludePath {includee = includee, path = path})
+            end
+
+          fun isSigDecStart i =
+            isReserved Token.Signature i orelse isReserved Token.Semicolon i
+
+          fun parseSigDec i =
+            if isReserved Token.Semicolon i then
+              (i + 1, SmiAst.SigSemicolon (tok i))
+            else
+              let val (i, d) = parse_sigdec i
+              in (i, SmiAst.SigDec d)
+              end
+
+          val (i, includes) =
+            parse_zeroOrMoreWhile (isReserved Token.Include) parseInclude i
+          val (i, sigdecs) = parse_zeroOrMoreWhile isSigDecStart parseSigDec i
+        in
+          (i, SmiAst.Includes {includes = includes, sigdecs = sigdecs})
+        end
+
+
+      (** The two file shapes are decided by the first token. *)
+      val (i, ast) =
+        if isReserved Token.Include 0 orelse isReserved Token.Signature 0 then
+          parse_includesForm 0
+        else
+          parse_interfaceForm 0
 
       val _ =
         if i >= numToks then
@@ -1387,8 +1456,6 @@ struct
             , what = "Unexpected token."
             , explain = SOME "Invalid start of top-level declaration."
             }
-
-      val ast = SmiAst.Interface {requires = requires, topdecs = topdecs}
     in
       if numToks > 0 then
         Ast ast

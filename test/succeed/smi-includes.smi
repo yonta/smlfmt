@@ -1,0 +1,23 @@
+(* The INCLUDES form of a .smi: `include "path"` followed by signature
+ * declarations. It is exclusive with the INTERFACE form, so `_require` cannot
+ * appear here, and the first token of the file decides which form it is.
+ *)
+
+include "./basis.smi"
+include "./other/lib.smi"
+
+signature SIGA =
+sig
+  type t
+  val f : t -> int
+end
+
+signature SIGB = SIGA
+and SIGC =
+sig
+  type u
+  structure S : SIGA
+  sharing type S.t = u
+end
+
+signature SIGD = SIGA where type t = int and type u = string

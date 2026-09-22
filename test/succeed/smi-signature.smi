@@ -1,0 +1,11 @@
+(* An INCLUDES file may start straight at the signature declarations, with no
+ * `include` at all. SML#'s .sig files take this shape.
+ *)
+
+signature Only =
+sig
+  type t
+  datatype color = Red | Green of int
+  exception Bad
+  val f : t -> color
+end

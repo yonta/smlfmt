@@ -191,6 +191,14 @@ struct
             , ty: Ty.t
             } Seq.t
         }
+
+    (** signature sigid = sigexp [and ...] -- only in an INCLUDES file *)
+    datatype sigdec =
+      Signature of
+        { signaturee: Token.t
+        , elems: {ident: Token.t, eq: Token.t, sigexp: sigexp} Seq.t
+        , delims: Token.t Seq.t
+        }
   end
 
 
@@ -423,9 +431,22 @@ struct
 
   | RequireSemicolon of Token.t
 
+  (** include "path" -- takes a path, unlike the `include sigexp` of a spec *)
+  datatype include_path =
+    IncludePath of {includee: Token.t, path: Token.t}
+
+  datatype sigdec_item = SigDec of Sig.sigdec | SigSemicolon of Token.t
+
+  (** A .smi takes one of two exclusive shapes, decided by its first token:
+    * `include` or `signature` open the INCLUDES form, anything else (including
+    * nothing at all) the INTERFACE form. `_require` and `signature` therefore
+    * cannot appear in the same file.
+    *)
   datatype ast =
   (** `_require` may only appear before the declarations, never between them. *)
     Interface of {requires: require Seq.t, topdecs: topdec Seq.t}
+
+  | Includes of {includes: include_path Seq.t, sigdecs: sigdec_item Seq.t}
 
   type t = ast
 
