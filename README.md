@@ -19,6 +19,8 @@ All of the SML code in this repository (everything in
       including [MLBasis path maps](http://mlton.org/MLBasisPathMap).
 - Helpful error messages with visual code references and syntax highlighting.
 - Support for various SuccessorML syntax extensions.
+- Support for [SML#](https://smlsharp.github.io/), including its `.smi`
+  interface files.
 - Configurable indentation size and maximum width.
 - Emacs integration (see [smlfmt.el](https://github.com/diku-dk/smlfmt.el))
 
@@ -145,7 +147,11 @@ for UTF-8 characters within strings.
 SuccessorML `withtype` in signatures syntax is allowed.
 
 `-allow-smlsharp [true|false]` (default `false`) controls whether or not
-[SML#](https://smlsharp.github.io/) syntax extensions are allowed. SML# is a
-separate dialect rather than a SuccessorML feature, so this is not implied by
-`-allow-successor-ml`. Only `.sml` files are covered; SML# interface files
-(`.smi`) use a different grammar and are not yet supported.
+[SML#](https://smlsharp.github.io/) syntax extensions are allowed in `.sml`
+files. SML# is a separate dialect rather than a SuccessorML feature, so this is
+not implied by `-allow-successor-ml`.
+
+SML# interface files (`.smi`) have their own grammar and are formatted whenever
+a file with that extension is given. No flag controls this: `.smi` cannot be
+read as Standard ML, so there would be nothing to turn off. `-engine pretty`
+does not support them.
