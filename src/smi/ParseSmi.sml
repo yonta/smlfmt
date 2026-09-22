@@ -69,6 +69,7 @@ struct
       fun parse_tyvar i = PS.tyvar toks i
       fun parse_tyvars i = PS.tyvars toks i
       fun parse_tycon i = PS.tycon toks i
+      fun parse_sigid i = PS.sigid toks i
       fun parse_strid i = PS.strid toks i
       fun parse_funid i = PS.funid toks i
       fun parse_vid i = PS.vid toks i
@@ -348,6 +349,368 @@ struct
               else
                 err i "Unexpected token." (SOME
                   "Expected to see a type constructor.")
+        end
+
+
+      (** ================================================================
+        * Signatures.
+        *
+        * Inside `sig ... end` and in a functor parameter, the grammar is SML
+        * '97's `spec`, not the `idec` of the top level.
+        *)
+
+      fun parse_condesc i =
+        let
+          val (i, vid) = parse_vid i
+          val (i, arg) =
+            if isReserved Token.Of i then
+              let
+                val off = tok i
+                val (i, ty) = parse_ty (i + 1)
+              in
+                (i, SOME {off = off, ty = ty})
+              end
+            else
+              (i, NONE)
+        in
+          (i, {vid = vid, arg = arg})
+        end
+
+
+      fun parse_typdesc i =
+        let
+          val (i, tyvars) = parse_tyvars i
+          val (i, tycon) = parse_tycon i
+        in
+          (i, {tyvars = tyvars, tycon = tycon})
+        end
+
+
+      fun isSpecStart i =
+        isReserved Token.Val i orelse isReserved Token.Type i
+        orelse isReserved Token.Eqtype i orelse isReserved Token.Datatype i
+        orelse isReserved Token.Exception i orelse isReserved Token.Structure i
+        orelse isReserved Token.Include i
+
+
+      (** `where type` and its `and type` continuation. A bare `and` belongs to
+        * whatever list encloses the sigexp, so the `type` has to be there too.
+        *)
+      fun isWhereType i =
+        (isReserved Token.Where i orelse isReserved Token.And i)
+        andalso isReserved Token.Type (i + 1)
+
+
+      fun parse_sigexp i =
+        let
+          val (i, sigexp) =
+            if isReserved Token.Sig i then
+              let
+                val sigg = tok i
+                val (i, spec) = parse_spec (i + 1)
+                val (i, endd) = parse_reserved Token.End i
+              in
+                (i, SmiAst.Sig.Spec {sigg = sigg, spec = spec, endd = endd})
+              end
+            else
+              let val (i, sigid) = parse_sigid i
+              in (i, SmiAst.Sig.Ident sigid)
+              end
+        in
+          if isWhereType i then
+            let
+              fun parseElem i =
+                let
+                  val wheree = tok i
+                  val typee = tok (i + 1)
+                  val (i, tyvars) = parse_tyvars (i + 2)
+                  val (i, tycon) = parse_maybeLongTycon i
+                  val (i, eq) = parse_reserved Token.Equal i
+                  val (i, ty) = parse_ty i
+                in
+                  ( i
+                  , { wheree = wheree
+                    , typee = typee
+                    , tyvars = tyvars
+                    , tycon = tycon
+                    , eq = eq
+                    , ty = ty
+                    }
+                  )
+                end
+
+              val (i, elems) = parse_oneOrMoreWhile isWhereType parseElem i
+            in
+              (i, SmiAst.Sig.WhereType {sigexp = sigexp, elems = elems})
+            end
+          else
+            (i, sigexp)
+        end
+
+
+      and parse_oneSpec i =
+        if isReserved Token.Val i then
+          let
+            fun parseElem i =
+              let
+                val (i, vid) = parse_vid i
+                val (i, colon) = parse_reserved Token.Colon i
+                val (i, ty) = parse_ty i
+              in
+                (i, {vid = vid, colon = colon, ty = ty})
+              end
+
+            val vall = tok i
+            val (i, {elems, delims}) =
+              parse_oneOrMoreDelimitedByReserved
+                {parseElem = parseElem, delim = Token.And} (i + 1)
+          in
+            (i, SmiAst.Sig.Val {vall = vall, elems = elems, delims = delims})
+          end
+
+        else if isReserved Token.Type i then
+          let
+            val typee = tok i
+            (** `type t` and `type t = ty` differ only after the tycon, and
+              * tyvarseq makes that an unbounded lookahead, so parse and look.
+              *)
+            val (afterDesc, _) = parse_typdesc (i + 1)
+          in
+            if isReserved Token.Equal afterDesc then
+              let
+                fun parseElem i =
+                  let
+                    val (i, {tyvars, tycon}) = parse_typdesc i
+                    val (i, eq) = parse_reserved Token.Equal i
+                    val (i, ty) = parse_ty i
+                  in
+                    (i, {tyvars = tyvars, tycon = tycon, eq = eq, ty = ty})
+                  end
+
+                val (i, {elems, delims}) =
+                  parse_oneOrMoreDelimitedByReserved
+                    {parseElem = parseElem, delim = Token.And} (i + 1)
+              in
+                ( i
+                , SmiAst.Sig.TypeAlias
+                    {typee = typee, elems = elems, delims = delims}
+                )
+              end
+            else
+              let
+                val (i, {elems, delims}) =
+                  parse_oneOrMoreDelimitedByReserved
+                    {parseElem = parse_typdesc, delim = Token.And} (i + 1)
+              in
+                ( i
+                , SmiAst.Sig.Type
+                    {typee = typee, elems = elems, delims = delims}
+                )
+              end
+          end
+
+        else if isReserved Token.Eqtype i then
+          let
+            val eqtypee = tok i
+            val (i, {elems, delims}) =
+              parse_oneOrMoreDelimitedByReserved
+                {parseElem = parse_typdesc, delim = Token.And} (i + 1)
+          in
+            ( i
+            , SmiAst.Sig.Eqtype
+                {eqtypee = eqtypee, elems = elems, delims = delims}
+            )
+          end
+
+        else if isReserved Token.Datatype i then
+          let
+            val left_datatypee = tok i
+          in
+            if
+              check Token.isTyCon (i + 1) andalso isReserved Token.Equal (i + 2)
+              andalso isReserved Token.Datatype (i + 3)
+            then
+              let
+                val tycon = tok (i + 1)
+                val eq = tok (i + 2)
+                val right_datatypee = tok (i + 3)
+                val (i, id) = parse_maybeLongTycon (i + 4)
+              in
+                ( i
+                , SmiAst.Sig.ReplicateDatatype
+                    { left_datatypee = left_datatypee
+                    , tycon = tycon
+                    , eq = eq
+                    , right_datatypee = right_datatypee
+                    , id = id
+                    }
+                )
+              end
+            else
+              let
+                fun parseElem i =
+                  let
+                    val (i, {tyvars, tycon}) = parse_typdesc i
+                    val (i, eq) = parse_reserved Token.Equal i
+                    val (i, {elems, delims}) =
+                      parse_oneOrMoreDelimitedByReserved
+                        {parseElem = parse_condesc, delim = Token.Bar} i
+                  in
+                    ( i
+                    , { tyvars = tyvars
+                      , tycon = tycon
+                      , eq = eq
+                      , elems = elems
+                      , delims = delims
+                      }
+                    )
+                  end
+
+                val (i, {elems, delims}) =
+                  parse_oneOrMoreDelimitedByReserved
+                    {parseElem = parseElem, delim = Token.And} (i + 1)
+              in
+                ( i
+                , SmiAst.Sig.Datatype
+                    {datatypee = left_datatypee, elems = elems, delims = delims}
+                )
+              end
+          end
+
+        else if isReserved Token.Exception i then
+          let
+            val exceptionn = tok i
+            val (i, {elems, delims}) =
+              parse_oneOrMoreDelimitedByReserved
+                {parseElem = parse_condesc, delim = Token.And} (i + 1)
+          in
+            ( i
+            , SmiAst.Sig.Exception
+                {exceptionn = exceptionn, elems = elems, delims = delims}
+            )
+          end
+
+        else if isReserved Token.Structure i then
+          let
+            fun parseElem i =
+              let
+                val (i, strid) = parse_strid i
+                val (i, colon) = parse_reserved Token.Colon i
+                val (i, sigexp) = parse_sigexp i
+              in
+                (i, {strid = strid, colon = colon, sigexp = sigexp})
+              end
+
+            val structuree = tok i
+            val (i, {elems, delims}) =
+              parse_oneOrMoreDelimitedByReserved
+                {parseElem = parseElem, delim = Token.And} (i + 1)
+          in
+            ( i
+            , SmiAst.Sig.Structure
+                {structuree = structuree, elems = elems, delims = delims}
+            )
+          end
+
+        else if isReserved Token.Include i then
+          let
+            val includee = tok i
+            val (i, sigexp) = parse_sigexp (i + 1)
+          in
+            (** `include A B C` is the derived form; a single sigid is an
+              * ordinary include of a named signature.
+              *)
+            case sigexp of
+              SmiAst.Sig.Ident first =>
+                if check Token.isStrIdentifier i then
+                  let
+                    val (i, rest) =
+                      parse_oneOrMoreWhile (check Token.isStrIdentifier)
+                        parse_token i
+                  in
+                    ( i
+                    , SmiAst.Sig.IncludeIds
+                        { includee = includee
+                        , sigids = Seq.append (Seq.singleton first, rest)
+                        }
+                    )
+                  end
+                else
+                  (i, SmiAst.Sig.Include {includee = includee, sigexp = sigexp})
+
+            | _ =>
+                (i, SmiAst.Sig.Include {includee = includee, sigexp = sigexp})
+          end
+
+        else
+          err i "Unexpected token." (SOME "Expected element of signature.")
+
+
+      (** A `sharing` clause attaches to everything specified before it. *)
+      and parse_afterSpec spec i =
+        if isReserved Token.Sharing i andalso isReserved Token.Type (i + 1) then
+          let
+            val sharingg = tok i
+            val typee = tok (i + 1)
+            val (i, {elems, delims}) =
+              parse_oneOrMoreDelimitedByReserved
+                {parseElem = parse_maybeLongTycon, delim = Token.Equal} (i + 2)
+          in
+            parse_afterSpec
+              (SmiAst.Sig.SharingType
+                 { spec = spec
+                 , sharingg = sharingg
+                 , typee = typee
+                 , elems = elems
+                 , delims = delims
+                 }) i
+          end
+        else if isReserved Token.Sharing i then
+          let
+            val sharingg = tok i
+            val (i, {elems, delims}) =
+              parse_oneOrMoreDelimitedByReserved
+                {parseElem = parse_maybeLongStrid, delim = Token.Equal} (i + 1)
+          in
+            parse_afterSpec
+              (SmiAst.Sig.Sharing
+                 { spec = spec
+                 , sharingg = sharingg
+                 , elems = elems
+                 , delims = delims
+                 }) i
+          end
+        else
+          (i, spec)
+
+
+      and parse_spec i =
+        let
+          fun parseOne i =
+            let
+              val (i, spec) = parse_oneSpec i
+              val (i, spec) = parse_afterSpec spec i
+              val (i, semicolon) = parse_maybeReserved Token.Semicolon i
+            in
+              (i, (spec, semicolon))
+            end
+
+          val (i, specs) = parse_zeroOrMoreWhile isSpecStart parseOne i
+        in
+          if
+            Seq.length specs = 0
+          then
+            (i, SmiAst.Sig.SpecEmpty)
+          else if
+            Seq.length specs = 1
+            andalso not (Option.isSome (#2 (Seq.nth specs 0)))
+          then
+            (i, #1 (Seq.nth specs 0))
+          else
+            ( i
+            , SmiAst.Sig.Multiple
+                {elems = Seq.map #1 specs, delims = Seq.map #2 specs}
+            )
         end
 
 
@@ -864,6 +1227,53 @@ struct
         parse_zeroOrMoreWhile isStrDecStart parse_strdec i
 
 
+      (** functor funid ( funarg ) = strexp
+        * ^
+        *)
+      fun parse_fundec i =
+        let
+          val functorr = tok i
+          val (i, funid) = parse_funid (i + 1)
+          val (i, lparen) = parse_reserved Token.OpenParen i
+
+          val (i, funarg) =
+            if
+              check Token.isStrIdentifier i
+              andalso isReserved Token.Colon (i + 1)
+            then
+              let
+                val strid = tok i
+                val colon = tok (i + 1)
+                val (i, sigexp) = parse_sigexp (i + 2)
+              in
+                ( i
+                , SmiAst.Fun.ArgIdent
+                    {strid = strid, colon = colon, sigexp = sigexp}
+                )
+              end
+            else
+              let val (i, spec) = parse_spec i
+              in (i, SmiAst.Fun.ArgSpec spec)
+              end
+
+          val (i, rparen) = parse_reserved Token.CloseParen i
+          val (i, eq) = parse_reserved Token.Equal i
+          val (i, strexp) = parse_strexp i
+        in
+          ( i
+          , SmiAst.Fun.Functor
+              { functorr = functorr
+              , funid = funid
+              , lparen = lparen
+              , funarg = funarg
+              , rparen = rparen
+              , eq = eq
+              , strexp = strexp
+              }
+          )
+        end
+
+
       (** ================================================================
         * Whole file.
         *)
@@ -891,12 +1301,16 @@ struct
 
       fun isTopDecStart i =
         isStrDecStart i orelse isReserved Token.Infix i
-        orelse isReserved Token.Infixr i
+        orelse isReserved Token.Infixr i orelse isReserved Token.Functor i
 
 
       fun parse_topdec i =
         if isReserved Token.Infix i orelse isReserved Token.Infixr i then
           parse_topInfix i
+        else if isReserved Token.Functor i then
+          let val (i, d) = parse_fundec i
+          in (i, SmiAst.TopFunDec d)
+          end
         else
           let val (i, d) = parse_strdec i
           in (i, SmiAst.TopStrDec d)

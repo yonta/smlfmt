@@ -80,6 +80,121 @@ struct
 
 
   (** ======================================================================
+    * Signatures.
+    *
+    * These appear only inside `sig ... end` and as a functor parameter, and
+    * they are SML '97's `spec`, not the `idec` of the top level. The one
+    * difference is that a `val` here may also take a poly type.
+    *)
+  structure Sig =
+  struct
+
+    (** vid [of ty] -- no `op`, unlike a top-level datbind *)
+    type condesc = {vid: Token.t, arg: {off: Token.t, ty: Ty.t} option}
+
+    type typdesc = {tyvars: Token.t SyntaxSeq.t, tycon: Token.t}
+
+    datatype spec =
+      SpecEmpty
+
+    (** val vid : ty [and ...] *)
+    | Val of
+        { vall: Token.t
+        , elems: {vid: Token.t, colon: Token.t, ty: Ty.t} Seq.t
+        , delims: Token.t Seq.t
+        }
+
+    (** type tyvarseq tycon [and ...] *)
+    | Type of {typee: Token.t, elems: typdesc Seq.t, delims: Token.t Seq.t}
+
+    (** type tyvarseq tycon = ty [and ...] -- a derived form *)
+    | TypeAlias of
+        { typee: Token.t
+        , elems:
+            {tyvars: Token.t SyntaxSeq.t, tycon: Token.t, eq: Token.t, ty: Ty.t} Seq.t
+        , delims: Token.t Seq.t
+        }
+
+    (** eqtype tyvarseq tycon [and ...] *)
+    | Eqtype of {eqtypee: Token.t, elems: typdesc Seq.t, delims: Token.t Seq.t}
+
+    (** datatype tyvarseq tycon = condesc [| ...] [and ...] *)
+    | Datatype of
+        { datatypee: Token.t
+        , elems:
+            { tyvars: Token.t SyntaxSeq.t
+            , tycon: Token.t
+            , eq: Token.t
+            , elems: condesc Seq.t
+            , delims: Token.t Seq.t
+            } Seq.t
+        , delims: Token.t Seq.t
+        }
+
+    (** datatype tycon = datatype longtycon *)
+    | ReplicateDatatype of
+        { left_datatypee: Token.t
+        , tycon: Token.t
+        , eq: Token.t
+        , right_datatypee: Token.t
+        , id: MaybeLongToken.t
+        }
+
+    (** exception condesc [and ...] *)
+    | Exception of
+        {exceptionn: Token.t, elems: condesc Seq.t, delims: Token.t Seq.t}
+
+    (** structure strid : sigexp [and ...] *)
+    | Structure of
+        { structuree: Token.t
+        , elems: {strid: Token.t, colon: Token.t, sigexp: sigexp} Seq.t
+        , delims: Token.t Seq.t
+        }
+
+    | Include of {includee: Token.t, sigexp: sigexp}
+
+    (** include sigid sigid [...] -- a derived form, two or more ids *)
+    | IncludeIds of {includee: Token.t, sigids: Token.t Seq.t}
+
+    | SharingType of
+        { spec: spec
+        , sharingg: Token.t
+        , typee: Token.t
+        , elems: MaybeLongToken.t Seq.t
+        , delims: Token.t Seq.t
+        }
+
+    | Sharing of
+        { spec: spec
+        , sharingg: Token.t
+        , elems: MaybeLongToken.t Seq.t
+        , delims: Token.t Seq.t
+        }
+
+    (** a run of specs, with optional semicolons between them *)
+    | Multiple of {elems: spec Seq.t, delims: Token.t option Seq.t}
+
+    and sigexp =
+      Ident of Token.t
+
+    | Spec of {sigg: Token.t, spec: spec, endd: Token.t}
+
+    (** sigexp where type ... [and type ...] *)
+    | WhereType of
+        { sigexp: sigexp
+        , elems:
+            { wheree: Token.t
+            , typee: Token.t
+            , tyvars: Token.t SyntaxSeq.t
+            , tycon: MaybeLongToken.t
+            , eq: Token.t
+            , ty: Ty.t
+            } Seq.t
+        }
+  end
+
+
+  (** ======================================================================
     * Core declarations.
     *)
   structure Dec =
@@ -247,11 +362,43 @@ struct
 
 
   (** ======================================================================
+    * Functors.
+    *)
+  structure Fun =
+  struct
+
+    datatype funarg =
+      ArgIdent of {strid: Token.t, colon: Token.t, sigexp: Sig.sigexp}
+
+    (** a spec written directly in the parameter position -- a derived form *)
+    | ArgSpec of Sig.spec
+
+    (** functor funid ( funarg ) = strexp
+      *
+      * The .smi form takes neither a result signature nor `and` chaining; the
+      * body itself is the interface the functor provides.
+      *)
+    datatype fundec =
+      Functor of
+        { functorr: Token.t
+        , funid: Token.t
+        , lparen: Token.t
+        , funarg: funarg
+        , rparen: Token.t
+        , eq: Token.t
+        , strexp: Str.strexp
+        }
+  end
+
+
+  (** ======================================================================
     * Whole file.
     *)
 
   datatype topdec =
     TopStrDec of Str.strdec
+
+  | TopFunDec of Fun.fundec
 
   (** infix [prec] vid ... -- only at top level, never inside a struct.
     * `nonfix` has a rule in interface.grm but interface.lex never produces the

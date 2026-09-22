@@ -18,6 +18,9 @@ struct
   fun x ++ y = concat (x, y)
 
 
+  val rigidIndented = Tab.Style.combine (Tab.Style.rigid, Tab.Style.indented)
+
+
   (** A label or identifier hugs the `:` that follows it, unless that would
     * glue two symbols together or swallow a comment.
     *)
@@ -125,6 +128,193 @@ struct
           in
             withNewChild showTy tab from ++ loop (arrow, to)
           end
+    end
+
+
+  fun showCondesc tab {vid, arg} =
+    token vid
+    ++ showOption (fn {off, ty} => token off ++ withNewChild showTy tab ty) arg
+
+
+  fun showTypdesc tab (starter, {tyvars, tycon}) =
+    at tab (token starter ++ showTokenSyntaxSeq tab tyvars ++ token tycon)
+
+
+  fun showSpec tab spec =
+    let
+      open SmiAst.Sig
+    in
+      case spec of
+        SpecEmpty => empty
+
+      | Val {vall, elems, delims} =>
+          let
+            fun showOne (starter, {vid, colon, ty}) =
+              at tab
+                (token starter ++ token vid ++ hugNext vid ++ token colon
+                 ++ withNewChild showTy tab ty)
+          in
+            Seq.iterate op++ (showOne (vall, Seq.nth elems 0))
+              (Seq.zipWith showOne (delims, Seq.drop elems 1))
+          end
+
+      | Type {typee, elems, delims} =>
+          Seq.iterate op++ (showTypdesc tab (typee, Seq.nth elems 0))
+            (Seq.zipWith (showTypdesc tab) (delims, Seq.drop elems 1))
+
+      | Eqtype {eqtypee, elems, delims} =>
+          Seq.iterate op++ (showTypdesc tab (eqtypee, Seq.nth elems 0))
+            (Seq.zipWith (showTypdesc tab) (delims, Seq.drop elems 1))
+
+      | TypeAlias {typee, elems, delims} =>
+          let
+            fun showOne (starter, {tyvars, tycon, eq, ty}) =
+              at tab
+                (token starter ++ showTokenSyntaxSeq tab tyvars ++ token tycon
+                 ++ token eq ++ withNewChild showTy tab ty)
+          in
+            Seq.iterate op++ (showOne (typee, Seq.nth elems 0))
+              (Seq.zipWith showOne (delims, Seq.drop elems 1))
+          end
+
+      | Datatype {datatypee, elems, delims} =>
+          let
+            fun showOne (starter, {tyvars, tycon, eq, elems, delims}) =
+              at tab
+                (token starter ++ showTokenSyntaxSeq tab tyvars ++ token tycon
+                 ++ token eq
+                 ++
+                 newTab tab (fn inner =>
+                   let
+                     fun showCon (delim, c) =
+                       at inner (token delim ++ showCondesc inner c)
+                   in
+                     at inner (showCondesc inner (Seq.nth elems 0))
+                     ++
+                     Seq.iterate op++ empty (Seq.zipWith showCon
+                       (delims, Seq.drop elems 1))
+                   end))
+          in
+            Seq.iterate op++ (showOne (datatypee, Seq.nth elems 0))
+              (Seq.zipWith showOne (delims, Seq.drop elems 1))
+          end
+
+      | ReplicateDatatype {left_datatypee, tycon, eq, right_datatypee, id} =>
+          token left_datatypee ++ token tycon ++ token eq
+          ++ token right_datatypee ++ token (MaybeLongToken.getToken id)
+
+      | Exception {exceptionn, elems, delims} =>
+          let
+            fun showOne (starter, c) =
+              at tab (token starter ++ showCondesc tab c)
+          in
+            Seq.iterate op++ (showOne (exceptionn, Seq.nth elems 0))
+              (Seq.zipWith showOne (delims, Seq.drop elems 1))
+          end
+
+      | Structure {structuree, elems, delims} =>
+          let
+            (** structure identifiers are never symbolic, so nospace is safe *)
+            fun showOne (starter, {strid, colon, sigexp}) =
+              at tab
+                (token starter ++ token strid
+                 ++ (if Token.hasCommentsAfter strid then empty else nospace)
+                 ++ token colon) ++ showSigExpInDec tab sigexp
+          in
+            Seq.iterate op++ (showOne (structuree, Seq.nth elems 0))
+              (Seq.zipWith showOne (delims, Seq.drop elems 1))
+          end
+
+      | Include {includee, sigexp} =>
+          token includee ++ withNewChild showSigExp tab sigexp
+
+      | IncludeIds {includee, sigids} =>
+          Seq.iterate op++ (token includee)
+            (Seq.map (withNewChild (fn _ => token) tab) sigids)
+
+      | Sharing {spec, sharingg, elems, delims} =>
+          newTab tab (fn inner =>
+            let
+              fun showOne (delim, elem) =
+                at inner (token delim ++ token (MaybeLongToken.getToken elem))
+
+              val stuff =
+                Seq.iterate op++
+                  (at inner (token (MaybeLongToken.getToken (Seq.nth elems 0))))
+                  (Seq.zipWith showOne (delims, Seq.drop elems 1))
+            in
+              showSpec tab spec ++ at tab (token sharingg ++ stuff)
+            end)
+
+      | SharingType {spec, sharingg, typee, elems, delims} =>
+          newTab tab (fn inner =>
+            let
+              fun showOne (delim, elem) =
+                at inner (token delim ++ token (MaybeLongToken.getToken elem))
+
+              val stuff =
+                Seq.iterate op++
+                  (at inner (token (MaybeLongToken.getToken (Seq.nth elems 0))))
+                  (Seq.zipWith showOne (delims, Seq.drop elems 1))
+            in
+              showSpec tab spec
+              ++ at tab (token sharingg ++ token typee ++ stuff)
+            end)
+
+      | Multiple {elems, delims} =>
+          let
+            fun showOne (elem, delim) =
+              at tab
+                (showSpec tab elem
+                 ++ showOption (fn d => nospace ++ token d) delim)
+
+            val things = Seq.zip (elems, delims)
+          in
+            Seq.iterate op++ (showOne (Seq.nth things 0)) (Seq.map showOne
+              (Seq.drop things 1))
+          end
+    end
+
+
+  and showSigExp tab sigexp =
+    let
+      open SmiAst.Sig
+    in
+      case sigexp of
+        Ident id => token id
+
+      | Spec {sigg, spec, endd} =>
+          newTabWithStyle tab (indented, fn inner =>
+            at tab (token sigg) ++ at inner (showSpec inner spec)
+            ++ cond inner {inactive = token endd, active = at tab (token endd)})
+
+      | WhereType {sigexp, elems} =>
+          let
+            fun showElem {wheree, typee, tyvars, tycon, eq, ty} =
+              at tab
+                (token wheree ++ token typee ++ showTokenSyntaxSeq tab tyvars
+                 ++ token (MaybeLongToken.getToken tycon) ++ token eq
+                 ++ withNewChild showTy tab ty)
+          in
+            Seq.iterate op++ (showSigExp tab sigexp) (Seq.map showElem elems)
+          end
+    end
+
+
+  (** `sig ... end` on the right of a declaration keeps the enclosing tab, so
+    * that `end` lines up with the keyword that opened the declaration.
+    *)
+  and showSigExpInDec tab sigexp =
+    let
+      open SmiAst.Sig
+    in
+      case sigexp of
+        Spec {sigg, spec, endd} =>
+          newTabWithStyle tab (rigidIndented, fn inner =>
+            at tab (token sigg) ++ at inner (showSpec inner spec)
+            ++ cond inner {inactive = token endd, active = at tab (token endd)})
+
+      | _ => withNewChild showSigExp tab sigexp
     end
 
 
@@ -382,6 +572,46 @@ struct
     joinAt tab (Seq.map (fn d => (strDecStartsLine d, showStrDec tab d)) elems)
 
 
+  fun showFunArg tab arg =
+    let
+      open SmiAst.Fun
+    in
+      case arg of
+        ArgSpec spec => withNewChild showSpec tab spec
+
+      | ArgIdent {strid, colon, sigexp} =>
+          newTab tab (fn tab =>
+            (** structure identifiers are never symbolic, so nospace is safe *)
+            at tab
+              (token strid
+               ++ (if Token.hasCommentsAfter strid then empty else nospace)
+               ++ token colon ++ showSigExpInDec tab sigexp))
+    end
+
+
+  (** `F(A: SIG)` reads better closed up, but a spec written directly in the
+    * parameter position wants room: `F (type t val x: t)`.
+    *)
+  fun funArgWantsSpaceBefore (SmiAst.Fun.ArgSpec _) = true
+    | funArgWantsSpaceBefore _ = false
+
+
+  fun showFunDec tab
+    (SmiAst.Fun.Functor {functorr, funid, lparen, funarg, rparen, eq, strexp}) =
+    at tab
+      (token functorr ++ token funid
+       ++ (if funArgWantsSpaceBefore funarg then space else nospace)
+       ++
+       newTab tab (fn inner =>
+         at inner
+           (token lparen ++ nospace ++ showFunArg inner funarg ++ nospace
+            ++ token rparen)) ++ token eq
+       ++
+       (case strexp of
+          SmiAst.Str.Struct _ => at tab (showStrExp tab strexp)
+        | _ => withNewChild showStrExp tab strexp))
+
+
   fun showRequire tab r =
     case r of
       SmiAst.Require {underscore, directive, locall, path, options} =>
@@ -403,6 +633,8 @@ struct
   fun showTopDec tab td =
     case td of
       SmiAst.TopStrDec d => showStrDec tab d
+
+    | SmiAst.TopFunDec d => showFunDec tab d
 
     | SmiAst.TopInfix {infixx, precedence, elems} =>
         token infixx ++ showOption token precedence

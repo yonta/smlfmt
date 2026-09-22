@@ -1,0 +1,40 @@
+(* A functor parameter is either a named signature or a spec written directly.
+ * Inside either, the grammar is SML '97's `spec`, not the `idec` of the top
+ * level: `type t` stands alone, and `eqtype` needs no runtime representation.
+ *)
+
+_require "basis.smi"
+
+functor Named (A:
+  sig
+    type tok
+    val f : tok -> int
+  end) =
+struct
+  type tok = A.tok
+  type stream (= ref)
+  val streamify : (unit -> tok) -> stream
+end
+
+functor DirectSpec (
+  type t
+  eqtype e
+  type 'a alias = 'a list
+  type ('a, 'b) plain and other
+  datatype color = Red | Green of int
+  datatype rep = datatype Order.order
+  exception Bad and Worse of string
+  structure S : sig type u end
+  include SIGA
+  include SIGB SIGC
+  val v : int and w : ['a. 'a -> 'a]
+  sharing type S.u = t
+) =
+struct
+  type t (= int)
+end
+
+functor Wheres (A: SIGA where type t = int and type u = string) =
+struct
+  type v (= int)
+end

@@ -161,6 +161,224 @@ struct
         | _ => false
 
 
+      fun equal_condesc (c1, c2) =
+        let
+          fun equal_arg (a1, a2) =
+            let val checker = at #off equal_tok <&> at #ty equal_ty
+            in checker (a1, a2)
+            end
+
+          val checker = at #vid equal_tok <&> at #arg (equal_op equal_arg)
+        in
+          checker (c1, c2)
+        end
+
+
+      fun equal_typdesc (t1, t2) =
+        let
+          val checker =
+            at #tyvars (equal_syntaxseq equal_tok) <&> at #tycon equal_tok
+        in
+          checker (t1, t2)
+        end
+
+
+      fun equal_spec (s1, s2) =
+        case (s1, s2) of
+          (Sig.SpecEmpty, Sig.SpecEmpty) => true
+
+        | (Sig.Val v1, Sig.Val v2) =>
+            let
+              fun equal_one (a1, a2) =
+                let
+                  val checker =
+                    at #vid equal_tok <&> at #colon equal_tok
+                    <&> at #ty equal_ty
+                in
+                  checker (a1, a2)
+                end
+
+              val checker =
+                at #vall equal_tok <&> at #elems (Seq.equal equal_one)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (v1, v2)
+            end
+
+        | (Sig.Type t1, Sig.Type t2) =>
+            let
+              val checker =
+                at #typee equal_tok <&> at #elems (Seq.equal equal_typdesc)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (t1, t2)
+            end
+
+        | (Sig.Eqtype t1, Sig.Eqtype t2) =>
+            let
+              val checker =
+                at #eqtypee equal_tok <&> at #elems (Seq.equal equal_typdesc)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (t1, t2)
+            end
+
+        | (Sig.TypeAlias t1, Sig.TypeAlias t2) =>
+            let
+              fun equal_one (a1, a2) =
+                let
+                  val checker =
+                    at #tyvars (equal_syntaxseq equal_tok)
+                    <&> at #tycon equal_tok <&> at #eq equal_tok
+                    <&> at #ty equal_ty
+                in
+                  checker (a1, a2)
+                end
+
+              val checker =
+                at #typee equal_tok <&> at #elems (Seq.equal equal_one)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (t1, t2)
+            end
+
+        | (Sig.Datatype d1, Sig.Datatype d2) =>
+            let
+              fun equal_one (a1, a2) =
+                let
+                  val checker =
+                    at #tyvars (equal_syntaxseq equal_tok)
+                    <&> at #tycon equal_tok <&> at #eq equal_tok
+                    <&> at #elems (Seq.equal equal_condesc)
+                    <&> at #delims (Seq.equal equal_tok)
+                in
+                  checker (a1, a2)
+                end
+
+              val checker =
+                at #datatypee equal_tok <&> at #elems (Seq.equal equal_one)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (d1, d2)
+            end
+
+        | (Sig.ReplicateDatatype r1, Sig.ReplicateDatatype r2) =>
+            let
+              val checker =
+                at #left_datatypee equal_tok <&> at #tycon equal_tok
+                <&> at #eq equal_tok <&> at #right_datatypee equal_tok
+                <&> at #id equal_longtok
+            in
+              checker (r1, r2)
+            end
+
+        | (Sig.Exception e1, Sig.Exception e2) =>
+            let
+              val checker =
+                at #exceptionn equal_tok <&> at #elems (Seq.equal equal_condesc)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (e1, e2)
+            end
+
+        | (Sig.Structure s1, Sig.Structure s2) =>
+            let
+              fun equal_one (a1, a2) =
+                let
+                  val checker =
+                    at #strid equal_tok <&> at #colon equal_tok
+                    <&> at #sigexp equal_sigexp
+                in
+                  checker (a1, a2)
+                end
+
+              val checker =
+                at #structuree equal_tok <&> at #elems (Seq.equal equal_one)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (s1, s2)
+            end
+
+        | (Sig.Include i1, Sig.Include i2) =>
+            let val checker = at #includee equal_tok <&> at #sigexp equal_sigexp
+            in checker (i1, i2)
+            end
+
+        | (Sig.IncludeIds i1, Sig.IncludeIds i2) =>
+            let
+              val checker =
+                at #includee equal_tok <&> at #sigids (Seq.equal equal_tok)
+            in
+              checker (i1, i2)
+            end
+
+        | (Sig.Sharing s1, Sig.Sharing s2) =>
+            let
+              val checker =
+                at #spec equal_spec <&> at #sharingg equal_tok
+                <&> at #elems (Seq.equal equal_longtok)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (s1, s2)
+            end
+
+        | (Sig.SharingType s1, Sig.SharingType s2) =>
+            let
+              val checker =
+                at #spec equal_spec <&> at #sharingg equal_tok
+                <&> at #typee equal_tok <&> at #elems (Seq.equal equal_longtok)
+                <&> at #delims (Seq.equal equal_tok)
+            in
+              checker (s1, s2)
+            end
+
+        | (Sig.Multiple m1, Sig.Multiple m2) =>
+            let
+              val checker =
+                at #elems (Seq.equal equal_spec)
+                <&> at #delims (Seq.equal (equal_op equal_tok))
+            in
+              checker (m1, m2)
+            end
+
+        | _ => false
+
+
+      and equal_sigexp (e1, e2) =
+        case (e1, e2) of
+          (Sig.Ident i1, Sig.Ident i2) => equal_tok (i1, i2)
+
+        | (Sig.Spec s1, Sig.Spec s2) =>
+            let
+              val checker =
+                at #sigg equal_tok <&> at #spec equal_spec
+                <&> at #endd equal_tok
+            in
+              checker (s1, s2)
+            end
+
+        | (Sig.WhereType w1, Sig.WhereType w2) =>
+            let
+              fun equal_one (a1, a2) =
+                let
+                  val checker =
+                    at #wheree equal_tok <&> at #typee equal_tok
+                    <&> at #tyvars (equal_syntaxseq equal_tok)
+                    <&> at #tycon equal_longtok <&> at #eq equal_tok
+                    <&> at #ty equal_ty
+                in
+                  checker (a1, a2)
+                end
+
+              val checker =
+                at #sigexp equal_sigexp <&> at #elems (Seq.equal equal_one)
+            in
+              checker (w1, w2)
+            end
+
+        | _ => false
+
+
       fun equal_impl (i1, i2) =
         case (i1, i2) of
           (Dec.ImplTy t1, Dec.ImplTy t2) => equal_longtok (t1, t2)
@@ -443,9 +661,39 @@ struct
         | _ => false
 
 
+      fun equal_funarg (a1, a2) =
+        case (a1, a2) of
+          (Fun.ArgIdent i1, Fun.ArgIdent i2) =>
+            let
+              val checker =
+                at #strid equal_tok <&> at #colon equal_tok
+                <&> at #sigexp equal_sigexp
+            in
+              checker (i1, i2)
+            end
+
+        | (Fun.ArgSpec s1, Fun.ArgSpec s2) => equal_spec (s1, s2)
+
+        | _ => false
+
+
+      fun equal_fundec (Fun.Functor f1, Fun.Functor f2) =
+        let
+          val checker =
+            at #functorr equal_tok <&> at #funid equal_tok
+            <&> at #lparen equal_tok <&> at #funarg equal_funarg
+            <&> at #rparen equal_tok <&> at #eq equal_tok
+            <&> at #strexp equal_strexp
+        in
+          checker (f1, f2)
+        end
+
+
       fun equal_topdec (t1, t2) =
         case (t1, t2) of
           (TopStrDec d1, TopStrDec d2) => equal_strdec (d1, d2)
+
+        | (TopFunDec d1, TopFunDec d2) => equal_fundec (d1, d2)
 
         | (TopInfix i1, TopInfix i2) =>
             let
