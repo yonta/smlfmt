@@ -18,9 +18,6 @@ struct
   fun x ++ y = concat (x, y)
 
 
-  val rigidIndented = Tab.Style.combine (Tab.Style.rigid, Tab.Style.indented)
-
-
   (** A label or identifier hugs the `:` that follows it, unless that would
     * glue two symbols together or swallow a comment.
     *)
@@ -284,7 +281,7 @@ struct
         Ident id => token id
 
       | Spec {sigg, spec, endd} =>
-          newTabWithStyle tab (indented, fn inner =>
+          newTabWithStyle tab (rigidIndented, fn inner =>
             at tab (token sigg) ++ at inner (showSpec inner spec)
             ++ cond inner {inactive = token endd, active = at tab (token endd)})
 
@@ -533,7 +530,7 @@ struct
           if Seq.length elems = 0 then
             token structt ++ at tab (token endd)
           else
-            newTabWithStyle tab (indented, fn inner =>
+            newTabWithStyle tab (rigidIndented, fn inner =>
               token structt ++ at inner (showStrDecs inner elems)
               ++
               cond inner {inactive = token endd, active = at tab (token endd)})

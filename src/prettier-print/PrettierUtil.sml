@@ -12,6 +12,12 @@ sig
   val indentedAllowComments: style
   val rigidInplace: style
   val indented: style
+
+  (** For bodies that read better broken open even when they would fit on one
+    * line, such as `struct ... end` and `sig ... end`. A rigid tab is promoted
+    * as soon as anything is placed at it, so the body always breaks.
+    *)
+  val rigidIndented: style
   val indentedAtLeastBy: int -> style
 
   type 'a shower = tab -> 'a -> doc
@@ -55,6 +61,7 @@ struct
     Tab.Style.combine (Tab.Style.indented, Tab.Style.allowComments)
   val rigidInplace = Tab.Style.combine (Tab.Style.inplace, Tab.Style.rigid)
   val indented = Tab.Style.indented
+  val rigidIndented = Tab.Style.combine (Tab.Style.rigid, Tab.Style.indented)
   fun indentedAtLeastBy x = Tab.Style.indentedAtLeastBy x
 
   type 'a shower = tab -> 'a -> doc

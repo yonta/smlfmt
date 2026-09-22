@@ -15,9 +15,15 @@ struct
 
   val empty = Ast (Seq.empty ())
 
-  structure SyntaxSeq = struct open AstType.SyntaxSeq end
+  structure SyntaxSeq =
+  struct
+    open AstType.SyntaxSeq
+  end
 
-  structure Ty = struct open AstType.Ty end
+  structure Ty =
+  struct
+    open AstType.Ty
+  end
 
   structure Pat =
   struct

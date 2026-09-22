@@ -34,7 +34,10 @@ end =
 struct
   structure D =
     Dict
-      (struct type t = string val compare: t * t -> order = String.compare end)
+      (struct
+         type t = string
+         val compare: t * t -> order = String.compare
+       end)
 
   open D
 

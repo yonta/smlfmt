@@ -96,7 +96,12 @@ sig
 *)
 end =
 struct
-  structure M = RedBlackMapFn (struct open Key type ord_key = t end)
+  structure M =
+    RedBlackMapFn
+      (struct
+         open Key
+         type ord_key = t
+       end)
 
   exception NotFound = LibBase.NotFound
 

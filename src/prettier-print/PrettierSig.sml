@@ -229,7 +229,7 @@ struct
         Ident id => token id
 
       | Spec {sigg, spec, endd} =>
-          newTabWithStyle tab (indented, fn inner =>
+          newTabWithStyle tab (rigidIndented, fn inner =>
             at tab (token sigg) ++ at inner (showSpec inner spec)
             ++ cond inner {inactive = token endd, active = at tab (token endd)})
 
@@ -253,7 +253,7 @@ struct
     else
       let
         open Ast.Sig
-        val style = Tab.Style.combine (Tab.Style.rigid, Tab.Style.indented)
+        val style = rigidIndented
       in
         case sigexp of
           Spec {sigg, spec, endd} =>

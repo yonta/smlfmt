@@ -33,7 +33,7 @@ struct
           if strDecIsEmpty strdec then
             token structt ++ at tab (token endd)
           else
-            newTabWithStyle tab (indented, fn inner =>
+            newTabWithStyle tab (rigidIndented, fn inner =>
               token structt ++ at inner (showStrDec inner strdec)
               ++
               cond inner {inactive = token endd, active = at tab (token endd)})

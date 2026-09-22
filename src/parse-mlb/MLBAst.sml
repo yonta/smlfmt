@@ -4,4 +4,6 @@
   *)
 
 structure MLBAst =
-struct open MLBAstType end
+struct
+  open MLBAstType
+end
