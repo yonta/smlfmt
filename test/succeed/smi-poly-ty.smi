@@ -1,0 +1,27 @@
+(* SML#'s explicit polymorphism. interface.grm splits `ty` and `poly_ty` into
+ * separate nonterminals, but a recursive descent parser needs no such split:
+ * the bracket form is just another atomic type, so it nests anywhere a type
+ * does.
+ *)
+
+_require "basis.smi"
+
+structure SmiPolyTy =
+struct
+  type ('a, 'b) dict (= *)
+  type boxed (= int)
+  type tyCon (= int)
+
+  val create : [''a, 'b. unit -> (''a, 'b) dict]
+  val castFromBoxed : ['a#boxed. boxed -> 'a]
+  val insertProcessedFiles : ['a#{fileId: int}. 'a -> unit]
+  val emptyKind : ['a#{}. 'a -> unit]
+  val severalProps : ['a#boxed#unboxed. 'a -> unit]
+  val kindedRecord :
+    ['a#{env: 'b, tyConName: 'b * tyCon -> string}, 'b. 'a -> string]
+
+  val inRecord : {f: ['a. 'a -> 'a], g: int}
+  val inTuple : ['a. 'a] * int
+  val inParens : (['a. 'a -> 'a])
+  val afterArrow : int -> ['a. 'a -> 'a]
+end

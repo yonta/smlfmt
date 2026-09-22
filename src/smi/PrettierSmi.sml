@@ -44,7 +44,27 @@ struct
       end
 
 
-  fun showTy tab ty : doc =
+  fun showTyRow tab (SmiAst.Ty.LabTy {lab, colon, ty}) =
+    token lab ++ hugNext lab ++ token colon ++ showTy tab ty
+
+
+  (** A kind constraint hugs the type variable it constrains: `'a#boxed`. *)
+  and showKind tab kind =
+    let
+      open SmiAst.Ty
+    in
+      case kind of
+        KindProp {hash, prop} => nospace ++ token hash ++ nospace ++ token prop
+
+      | KindRecord {hash, left, elems, delims, right} =>
+          nospace ++ token hash ++ nospace
+          ++
+          showSequence (fn _ => false) (withNewChild showTyRow) tab
+            {openn = left, elems = elems, delims = delims, close = right}
+    end
+
+
+  and showTy tab ty : doc =
     let
       open SmiAst.Ty
     in
@@ -74,12 +94,22 @@ struct
             end)
 
       | Record {left, elems, delims, right} =>
+          showSequence (fn _ => false) (withNewChild showTyRow) tab
+            {openn = left, elems = elems, delims = delims, close = right}
+
+      | Poly {left, elems, delims, dot, ty, right} =>
           let
-            fun showElem tab (LabTy {lab, colon, ty}) =
-              token lab ++ hugNext lab ++ token colon ++ showTy tab ty
+            fun showKindedTyvar {tyvar, kinds} =
+              Seq.iterate op++ (token tyvar) (Seq.map (showKind tab) kinds)
+
+            fun showRest (delim, x) =
+              nospace ++ token delim ++ showKindedTyvar x
           in
-            showSequence (fn _ => false) (withNewChild showElem) tab
-              {openn = left, elems = elems, delims = delims, close = right}
+            token left ++ nospace
+            ++
+            Seq.iterate op++ (showKindedTyvar (Seq.nth elems 0))
+              (Seq.zipWith showRest (delims, Seq.drop elems 1)) ++ nospace
+            ++ token dot ++ withNewChild showTy tab ty ++ nospace ++ token right
           end
 
       | Arrow {from, arrow, to} =>

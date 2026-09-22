@@ -46,6 +46,7 @@ struct
 
       fun parse_reserved rc i =
         PS.reserved toks rc i
+      fun parse_tyvar i = PS.tyvar toks i
       fun parse_tyvars i = PS.tyvars toks i
       fun parse_tycon i = PS.tycon toks i
       fun parse_strid i = PS.strid toks i
@@ -85,6 +86,8 @@ struct
               end
             else if isReserved Token.OpenCurlyBracket i then
               parse_tyRecord (tok i) (i + 1)
+            else if isReserved Token.OpenSquareBracket i then
+              parse_tyPoly (tok i) (i + 1)
             else if check Token.isMaybeLongIdentifier i then
               ( i + 1
               , SmiAst.Ty.Con
@@ -134,7 +137,7 @@ struct
       (** { label: ty [, ...] }
         *  ^
         *)
-      and parse_tyRecord leftBracket i =
+      and parse_tyRows i =
         let
           fun parseElem i =
             let
@@ -152,14 +155,88 @@ struct
               , shouldStop = isReserved Token.CloseCurlyBracket
               } i
 
-          val (i, rightBracket) = parse_reserved Token.CloseCurlyBracket i
+          val (i, right) = parse_reserved Token.CloseCurlyBracket i
+        in
+          (i, {elems = elems, delims = delims, right = right})
+        end
+
+
+      and parse_tyRecord leftBracket i =
+        let
+          val (i, {elems, delims, right}) = parse_tyRows i
         in
           ( i
           , SmiAst.Ty.Record
               { left = leftBracket
               , elems = elems
               , delims = delims
-              , right = rightBracket
+              , right = right
+              }
+          )
+        end
+
+
+      (** #boxed, or #{lab: ty, ...}
+        * ^
+        *)
+      and parse_kind i =
+        let
+          val hash = tok i
+          val i = i + 1
+        in
+          if isReserved Token.OpenCurlyBracket i then
+            let
+              val left = tok i
+              val (i, {elems, delims, right}) = parse_tyRows (i + 1)
+            in
+              ( i
+              , SmiAst.Ty.KindRecord
+                  { hash = hash
+                  , left = left
+                  , elems = elems
+                  , delims = delims
+                  , right = right
+                  }
+              )
+            end
+          else if check Token.isTyCon i then
+            (i + 1, SmiAst.Ty.KindProp {hash = hash, prop = tok i})
+          else
+            err i "Unexpected token." (SOME
+              "Expected a kind property name or a record kind.")
+        end
+
+
+      (** [ 'a #kind ..., 'b. ty ]
+        *  ^
+        *)
+      and parse_tyPoly left i =
+        let
+          fun parseElem i =
+            let
+              val (i, tyvar) = parse_tyvar i
+              val (i, kinds) =
+                parse_zeroOrMoreWhile (isReserved Token.Hash) parse_kind i
+            in
+              (i, {tyvar = tyvar, kinds = kinds})
+            end
+
+          val (i, {elems, delims}) =
+            parse_oneOrMoreDelimitedByReserved
+              {parseElem = parseElem, delim = Token.Comma} i
+
+          val (i, dot) = parse_reserved Token.Dot i
+          val (i, ty) = parse_ty i
+          val (i, right) = parse_reserved Token.CloseSquareBracket i
+        in
+          ( i
+          , SmiAst.Ty.Poly
+              { left = left
+              , elems = elems
+              , delims = delims
+              , dot = dot
+              , ty = ty
+              , right = right
               }
           )
         end

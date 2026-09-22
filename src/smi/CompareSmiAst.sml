@@ -67,6 +67,26 @@ struct
         end
 
 
+      and equal_kind (k1, k2) =
+        case (k1, k2) of
+          (Ty.KindProp p1, Ty.KindProp p2) =>
+            let val checker = at #hash equal_tok <&> at #prop equal_tok
+            in checker (p1, p2)
+            end
+
+        | (Ty.KindRecord r1, Ty.KindRecord r2) =>
+            let
+              val checker =
+                at #hash equal_tok <&> at #left equal_tok
+                <&> at #elems (Seq.equal equal_tyrow)
+                <&> at #delims (Seq.equal equal_tok) <&> at #right equal_tok
+            in
+              checker (r1, r2)
+            end
+
+        | _ => false
+
+
       and equal_ty (t1, t2) =
         case (t1, t2) of
           (Ty.Var v1, Ty.Var v2) => equal_tok (v1, v2)
@@ -110,6 +130,24 @@ struct
             let
               val checker =
                 at #left equal_tok <&> at #ty equal_ty <&> at #right equal_tok
+            in
+              checker (p1, p2)
+            end
+
+        | (Ty.Poly p1, Ty.Poly p2) =>
+            let
+              fun equal_kindedTyvar (v1, v2) =
+                let
+                  val checker =
+                    at #tyvar equal_tok <&> at #kinds (Seq.equal equal_kind)
+                in
+                  checker (v1, v2)
+                end
+
+              val checker =
+                at #left equal_tok <&> at #elems (Seq.equal equal_kindedTyvar)
+                <&> at #delims (Seq.equal equal_tok) <&> at #dot equal_tok
+                <&> at #ty equal_ty <&> at #right equal_tok
             in
               checker (p1, p2)
             end

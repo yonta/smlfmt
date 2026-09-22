@@ -475,13 +475,23 @@ struct
             else if
               is #"." at s andalso startsPrime
             then
-              error
-                { pos = slice (s, s + 1)
-                , what = "Unexpected dot."
-                , explain = SOME "Qualifiers cannot start with a prime (')"
-                }
+              (** In `.smi`, the dot right after a type variable separates the
+                * quantifier in `['a. ty]`; it is not a qualifier.
+                *)
+              if smi then
+                success tok
+              else
+                error
+                  { pos = slice (s, s + 1)
+                  , what = "Unexpected dot."
+                  , explain = SOME "Qualifiers cannot start with a prime (')"
+                  }
             else if
               is #"." at s
+              andalso
+              not
+                (smi andalso not (check LexUtils.isSymbolic at s + 1)
+                 andalso not (check LexUtils.isLetter at s + 1))
             then
               loop_continueLongIdentifier (s + 1)
                 {longStart = if isQualified then longStart else SOME idStart}

@@ -28,6 +28,20 @@ struct
     datatype tyrow =
       LabTy of {lab: Token.t, colon: Token.t, ty: ty}
 
+    (** The constraint on a quantified type variable, as in `'a#boxed` or
+      * `'a#{fileId: int}`. Several may follow one variable.
+      *)
+    and kind =
+      KindProp of {hash: Token.t, prop: Token.t}
+
+    | KindRecord of
+        { hash: Token.t
+        , left: Token.t
+        , elems: tyrow Seq.t
+        , delims: Token.t Seq.t
+        , right: Token.t
+        }
+
     and ty =
       Var of Token.t
 
@@ -50,6 +64,16 @@ struct
 
     (** ( ty ) *)
     | Parens of {left: Token.t, ty: ty, right: Token.t}
+
+    (** [ 'a #kind ..., 'b. ty ] -- SML#'s explicit polymorphism *)
+    | Poly of
+        { left: Token.t
+        , elems: {tyvar: Token.t, kinds: kind Seq.t} Seq.t
+        , delims: Token.t Seq.t
+        , dot: Token.t
+        , ty: ty
+        , right: Token.t
+        }
 
     type t = ty
   end
