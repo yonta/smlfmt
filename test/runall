@@ -51,7 +51,7 @@ fail_problems = []
 def ext(path):
   return os.path.splitext(path)[1]
 
-valid_exts = [".mlb",".sml",".sig",".fun",".cm",".ml",".ML"]
+valid_exts = [".mlb",".sml",".sig",".fun",".cm",".ml",".ML",".smi"]
 
 for name in os.listdir(FAIL_TEST_DIR):
   path = os.path.join(FAIL_TEST_DIR, name)

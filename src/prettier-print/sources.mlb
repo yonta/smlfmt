@@ -18,5 +18,6 @@ local
   PrettierPrintAst.sml
 in
   structure PrettierPrintAst
+  structure PrettierUtil
   structure TabbedTokenDoc
 end

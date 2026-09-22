@@ -18,6 +18,7 @@ local
 in
   structure ParserUtils
   structure ParserCombinators
+  structure ParseSimple
   structure InfixDict
   structure Parser
 end

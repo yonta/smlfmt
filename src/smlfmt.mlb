@@ -9,4 +9,5 @@ pretty-print/sources.mlb
 prettier-print/sources.mlb
 syntax-highlighting/sources.mlb
 check/sources.mlb
+smi/sources.mlb
 smlfmt.sml

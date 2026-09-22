@@ -1,0 +1,31 @@
+(* SML#'s .smi interface language. Its top level is `idec`, not SML '97's
+ * `spec`: `type` carries a runtime representation instead of standing alone,
+ * and `structure` is a definition rather than a constraint.
+ *)
+
+_require "basis.smi"
+
+structure SmiDecs =
+struct
+  (* the four forms of runtime representation *)
+  type opaque (= int)
+  type 'a sliced (= *)
+  type recordish (= {})
+  type functionish (= ->)
+  type qualified (= Word32.word)
+
+  type pair = int * string
+  type ('a, 'b) both = 'a * 'b and simple = int
+
+  val x : int
+  val + : int * int -> int
+  val labelled : {a: int, b: string} -> unit
+  val nested : (int -> string) * {c: int} -> ('a, int) both
+
+  structure Inner =
+  struct
+    val y : (int, string) both
+  end
+
+  structure Alias = Inner
+end

@@ -1,0 +1,6 @@
+_require "basis.smi"
+
+structure A =
+struct
+  type t
+end

@@ -14,6 +14,11 @@ sig
     * raises Error if there's a problem.
     *)
   val tokens: AstAllows.t -> Source.t -> Token.t Seq.t
+
+  (** Same, for SML#'s `.smi` interface files. These have their own grammar,
+    * with no feature flags to select, so there is no AstAllows.t to pass.
+    *)
+  val tokensSmi: Source.t -> Token.t Seq.t
 end =
 struct
 
@@ -28,7 +33,7 @@ struct
          {header = "SYNTAX ERROR", pos = pos, what = what, explain = explain})
 
 
-  fun next allows (src: Source.t) : Token.Pretoken.t option =
+  fun nextWith {smi: bool} allows (src: Source.t) : Token.Pretoken.t option =
     let
       val startOffset = Source.absoluteStartOffset src
       val src = Source.wholeFile src
@@ -408,6 +413,11 @@ struct
       and loop_afterDot s =
         if (is #"." at s) andalso (is #"." at s + 1) then
           success (mkr Token.DotDotDot (s - 1, s + 2))
+        (** `.smi` uses a bare dot in explicit polymorphism: `['a. ty]`.
+          * In `.sml` a lone dot is still an error, so keep suggesting `...`.
+          *)
+        else if smi then
+          success (mkr Token.Dot (s - 1, s))
         else
           let
             val huh = if (is #"." at s) then s + 1 else s
@@ -675,7 +685,10 @@ struct
     end
 
 
-  fun tokens allows src =
+  fun next allows src =
+    nextWith {smi = false} allows src
+
+  fun tokensWith {smi: bool} allows src =
     let
       val startOffset = Source.absoluteStartOffset src
       val endOffset = Source.absoluteEndOffset src
@@ -691,11 +704,30 @@ struct
         if offset >= endOffset then
           finish acc
         else
-          case next allows (Source.drop src offset) of
+          case nextWith {smi = smi} allows (Source.drop src offset) of
             NONE => finish acc
           | SOME tok => loop (tok :: acc) (tokEndOffset tok)
     in
       loop [] startOffset
     end
+
+  fun tokens allows src =
+    tokensWith {smi = false} allows src
+
+  (** The lexer consults `allows` only for SML# record extensions in `.sml`,
+    * none of which are reachable from the `.smi` grammar.
+    *)
+  val smiAllows = AstAllows.make
+    { topExp = false
+    , optBar = false
+    , recordPun = false
+    , orPat = false
+    , extendedText = false
+    , sigWithtype = false
+    , smlSharp = false
+    }
+
+  fun tokensSmi src =
+    tokensWith {smi = true} smiAllows src
 
 end

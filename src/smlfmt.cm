@@ -9,4 +9,5 @@ Group is
   prettier-print/sources.cm
   syntax-highlighting/sources.cm
   check/sources.cm
+  smi/sources.cm
   Main.smlnj.sml

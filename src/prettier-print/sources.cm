@@ -1,5 +1,6 @@
 Library
   structure PrettierPrintAst
+  structure PrettierUtil
   structure TabbedTokenDoc
 is
   $/basis.cm

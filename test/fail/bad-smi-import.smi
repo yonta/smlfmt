@@ -1,0 +1,6 @@
+_require "basis.smi"
+
+structure A =
+struct
+  val f = _import "f" : int -> int
+end

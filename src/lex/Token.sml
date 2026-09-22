@@ -49,6 +49,7 @@ sig
   | Comma
   | Colon
   | Semicolon
+  | Dot (** SML#: separates quantifier from body in `['a. ty]` *)
   | DotDotDot
   | Underscore
   | Bar
@@ -217,6 +218,7 @@ struct
   | Comma
   | Colon
   | Semicolon
+  | Dot (** SML#: separates quantifier from body in `['a. ty]` *)
   | DotDotDot
   | Underscore
   | Bar
@@ -377,6 +379,7 @@ struct
     | CloseCurlyBracket => "}"
     | Semicolon => ";"
     | Underscore => "_"
+    | Dot => "."
     | DotDotDot => "..."
     | Comma => ","
     (** Core *)

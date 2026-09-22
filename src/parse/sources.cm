@@ -1,6 +1,7 @@
 Library
   structure ParserUtils
   structure ParserCombinators
+  structure ParseSimple
   structure InfixDict
   structure Parser
 is

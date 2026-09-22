@@ -263,31 +263,20 @@ fun mkSMLPrettied parserOutput =
         , debug = doDebug
         } ast
 
-fun formatOneSML
-  { path = fp: FilePath.t
-  , allows: AstAllows.t
-  , infdict: InfixDict.t option
-  , lexerOutput: Token.t Seq.t
-  , parserOutput: Parser.parser_output
-  } =
+(** Everything below the formatting itself: previewing, the safety check, and
+  * writing the file back. `prettied` is the formatted output and `check` runs
+  * --safety-check over it, so `.sml` and `.smi` share the rest.
+  *)
+fun formatOne {path = fp: FilePath.t, prettied, check} =
   let
     val hfp = FilePath.toHostPath fp
-    val prettied = mkSMLPrettied parserOutput
     val result = TCS.toString {colors = false} prettied
 
-    fun check () =
+    fun runCheck () =
       let
-        val result = CheckOutput.check
-          { origLexerOutput = lexerOutput
-          , origParserOutput = parserOutput
-          , origFormattedOutput = result
-          , formatter = TCS.toString {colors = false} o mkSMLPrettied
-          , allows = allows
-          , infdict = infdict
-          , tabWidth = tabWidth
-          }
+        val checkResult = check result
       in
-        case result of
+        case checkResult of
           CheckOutput.AllGood => print ("check " ^ hfp ^ ": success\n")
 
         | CheckOutput.NonIdempotentFormatting =>
@@ -355,13 +344,76 @@ fun formatOneSML
       ; print "\n"
       );
 
-    if not doSafetyCheck then () else check ();
+    if not doSafetyCheck then () else runCheck ();
 
     if previewOnly orelse doCheck then ()
     else if doForce then writeOut ()
     else confirm ()
   end
   handle exn => TCS.printErr (boldc Palette.red (exnToString exn ^ "\n"))
+
+
+fun formatOneSML
+  { path = fp: FilePath.t
+  , allows: AstAllows.t
+  , infdict: InfixDict.t option
+  , lexerOutput: Token.t Seq.t
+  , parserOutput: Parser.parser_output
+  } =
+  formatOne
+    { path = fp
+    , prettied = mkSMLPrettied parserOutput
+    , check = fn formatted =>
+        CheckOutput.check
+          { origLexerOutput = lexerOutput
+          , origParserOutput = parserOutput
+          , origFormattedOutput = formatted
+          , formatter = TCS.toString {colors = false} o mkSMLPrettied
+          , allows = allows
+          , infdict = infdict
+          , tabWidth = tabWidth
+          }
+    }
+
+
+fun mkSMIPrettied parserOutput =
+  case parserOutput of
+    ParseSmi.JustComments cs =>
+      TabbedTokenDoc.prettyJustComments
+        { ribbonFrac = ribbonFrac
+        , maxWidth = maxWidth
+        , indentWidth = indentWidth
+        , tabWidth = tabWidth
+        , debug = doDebug
+        } cs
+
+  | ParseSmi.Ast ast =>
+      PrettierSmi.pretty
+        { ribbonFrac = ribbonFrac
+        , maxWidth = maxWidth
+        , tabWidth = tabWidth
+        , indent = indentWidth
+        , debug = doDebug
+        } ast
+
+
+fun formatOneSMI
+  { path = fp: FilePath.t
+  , lexerOutput: Token.t Seq.t
+  , parserOutput: ParseSmi.parser_output
+  } =
+  formatOne
+    { path = fp
+    , prettied = mkSMIPrettied parserOutput
+    , check = fn formatted =>
+        CheckOutputSmi.check
+          { origLexerOutput = lexerOutput
+          , origParserOutput = parserOutput
+          , origFormattedOutput = formatted
+          , formatter = TCS.toString {colors = false} o mkSMIPrettied
+          , tabWidth = tabWidth
+          }
+    }
 
 
 fun doSML filepath =
@@ -419,12 +471,43 @@ fun doMLB filepath =
   end
 
 
+fun doSMI filepath =
+  let
+    (** `.smi` has its own AST, which the old engine knows nothing about. *)
+    val _ =
+      if engine = "prettier" then
+        ()
+      else
+        failWithMessage
+          ("ERROR: -engine " ^ engine
+           ^ " does not support .smi files; use -engine prettier\n")
+
+    val fp = FilePath.fromUnixPath filepath
+
+    val (source, tm) = Util.getTime (fn _ => Source.loadFromFile fp)
+    val _ = dbgprintln ("load source: " ^ Time.fmt 3 tm ^ "s")
+
+    val (allTokens, tm) = Util.getTime (fn _ =>
+      Lexer.tokensSmi source
+      handle exn => handleLexOrParseError exn)
+    val _ = dbgprintln ("lex: " ^ Time.fmt 3 tm ^ "s")
+
+    val (result, tm) = Util.getTime (fn _ =>
+      ParseSmi.parse allTokens
+      handle exn => handleLexOrParseError exn)
+    val _ = dbgprintln ("parse: " ^ Time.fmt 3 tm ^ "s")
+  in
+    formatOneSMI {path = fp, lexerOutput = allTokens, parserOutput = result}
+  end
+
+
 datatype fileinfo =
   FileError of exn
 | Unsupported of string
 | MissingExtension
 | MLBFile
 | SMLFile
+| SMIFile
 
 fun fileinfo filepath =
   let
@@ -433,6 +516,7 @@ fun fileinfo filepath =
     case eo of
       NONE => MissingExtension
     | SOME "mlb" => MLBFile
+    | SOME "smi" => SMIFile
     | SOME e =>
         if List.exists (fn e' => e = e') ["sml", "fun", "sig"] then SMLFile
         else Unsupported e
@@ -443,6 +527,7 @@ fun okayFile (_, info) =
   case info of
     SMLFile => true
   | MLBFile => true
+  | SMIFile => true
   | _ => false
 
 fun skipFile (filepath, info) =
@@ -462,6 +547,7 @@ fun doFile (fp, info) =
   case info of
     SMLFile => doSML fp
   | MLBFile => doMLB fp
+  | SMIFile => doSMI fp
   | _ => raise Fail "Error! Bug! Please submit an error report..."
 
 val _ = List.app skipFile filesToSkip

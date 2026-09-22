@@ -1,0 +1,20 @@
+local
+  $(SML_LIB)/basis/basis.mlb
+  ../base/sources.mlb
+  ../lex/sources.mlb
+  ../ast/sources.mlb
+  ../parse/sources.mlb
+  ../prettier-print/sources.mlb
+  ../check/sources.mlb
+  SmiAst.sml
+  ParseSmi.sml
+  CompareSmiAst.sml
+  PrettierSmi.sml
+  CheckOutputSmi.sml
+in
+  structure SmiAst
+  structure ParseSmi
+  structure CompareSmiAst
+  structure PrettierSmi
+  structure CheckOutputSmi
+end

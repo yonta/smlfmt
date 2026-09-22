@@ -1,0 +1,19 @@
+Library
+  structure SmiAst
+  structure ParseSmi
+  structure CompareSmiAst
+  structure PrettierSmi
+  structure CheckOutputSmi
+is
+  $/basis.cm
+  ../base/sources.cm
+  ../lex/sources.cm
+  ../ast/sources.cm
+  ../parse/sources.cm
+  ../prettier-print/sources.cm
+  ../check/sources.cm
+  SmiAst.sml
+  ParseSmi.sml
+  CompareSmiAst.sml
+  PrettierSmi.sml
+  CheckOutputSmi.sml
